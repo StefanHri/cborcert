@@ -1,0 +1,10 @@
+[package]
+name = "cborcert"
+version = "0.1.0"
+authors = ["Hristozov, Stefan <stefan.hristozov@aisec.fraunhofer.de>"]
+edition = "2018"
+
+[dependencies]
+cbor = "0.4.1"
+ed25519-dalek = "1.0.1"
+clap ="2.33.3"
