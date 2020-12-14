@@ -64,6 +64,7 @@ dependencies = [
  "cbor",
  "clap",
  "ed25519-dalek",
+ "rand",
 ]
 
 [[package]]

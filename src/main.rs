@@ -1,7 +1,12 @@
 #[macro_use]
 extern crate clap;
 use clap::{App, Arg};
+use std::process;
 
+mod config;
+mod keygen;
+mod files;
+use config::{Config, Command};
 //use cbor::{Decoder, Encoder};
 
 fn main() {
@@ -30,42 +35,30 @@ fn main() {
         //.before_help("DOTO: Put here license information")
         .about(
             "\nCBORcert is a command line tool for generation and parsing of CBOR encoded X.509 Certificates. It is based on the IETF draft \"CBOR Encoding of X.509 Certificates (CBOR Certificates)\", version draft-mattsson-cose-cbor-cert-compress-05 from December 01, 2020.")
-        .arg(Arg::with_name("ARG1")
-                .index(1)
-                .help("Generates a random asymmetric keypair (Currently only ED25519 is supported!)"))
-        .arg(Arg::with_name("FLAG")
-                //flags are boolean values. They are provided by the user or not
-                //flags have no value
-                .short("f")//this or long makes it flag 
-                .long("flag-keypair-gen")
-                .multiple(true)
-                .help("Generates a random asymmetric keypair (Currently only ED25519 is supported!)"))   
-        .arg(Arg::with_name("OPT1")
+        .arg(Arg::with_name("SGNKEY")
             .short("k")
-            .long("keypair-gen")
+            .long("sgn-key-gen")
             .takes_value(true)//this makes it option
             .multiple(true)//we can have the same option repeating many times with many values
             //.required(true)//options can be required
+            //.number_of_values(3)
             .help("Generates a random asymmetric keypair (Currently only ED25519 is supported!)")   
         )     
         .get_matches();
 
-    if matches.is_present("ARG1") {
-        println!("ARG1 was used");
+
+    if let Some(args) = matches.values_of("SGNKEY"){
+
+    let config = Config::new(Command::SgnKeyGen, args.collect()).unwrap_or_else(|err| {
+        eprintln!("Problem parsing arguments: {}", err);
+        process::exit(1);
+    });
+
+    if let Err(e) = keygen::key_gen(config) {
+        eprintln!("Error during key generation: {}", e);
+        process::exit(1); 
     }
 
-    if matches.is_present("FLAG") {
-        println!("FLAG was used");
-    }
-
-    if let Some(a1_val) = matches.value_of("ARG1") {
-        println!("ARG1={}", a1_val);
-    }
-
-    if let Some(ov_itr) = matches.values_of("OPT1"){
-       
-       for v in ov_itr{
-           println!("values of OPT1 is {}", v);
-       }
     }
 }
+
