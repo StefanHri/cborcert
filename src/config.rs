@@ -77,6 +77,7 @@ mod tests {
         let in_params = vec!["ed25519", "ca.c"];
         let config = Config::new(Command::SgnKeyGen, in_params).unwrap();
 
+
         assert!(matches!(config.algorithm, SignatureAlgorithm::Ed25519));
         assert!(matches!(config.out_files[0].format, FileFormat::C));
         assert_eq!(config.out_files[0].name, String::from("ca"));

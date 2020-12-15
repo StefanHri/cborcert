@@ -6,28 +6,11 @@ use std::process;
 mod config;
 mod keygen;
 mod files;
+mod cert;
 use config::{Config, Command};
-//use cbor::{Decoder, Encoder};
+
 
 fn main() {
-    // The data we want to encode. Each element in the list is encoded as its
-    // own separate top-level data item.
-    // let data = vec![('a', 1), ('b', 2), ('c', 3)];
-    // let data1 = vec!["A"];
-
-    // Create an in memory encoder. Use `Encoder::from_writer` to write to
-    // anything that implements `Writer`.
-    // let mut e = Encoder::from_memory();
-    // e.encode(&data1).unwrap();
-
-    // println!("{:?}", e.as_bytes());
-
-    // Create an in memory decoder. Use `Decoder::from_reader` to read from
-    // anything that implements `Reader`.
-    // let mut d = Decoder::from_bytes(e.as_bytes());
-    // let items: Vec<(char, i32)> = d.decode().collect::<Result<_, _>>().unwrap();
-
-    // assert_eq!(items, data);
 
     let matches = App::new("CBORcert")
         .version(crate_version!())
