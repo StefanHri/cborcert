@@ -14,109 +14,87 @@ struct TBSCertificate {
 }
 
 struct CBORCertificate {
-    signed_data: TBSCertificate,
+    signed_data: Vec<u8>,
+    decoded_data: TBSCertificate,
     signature: Vec<u8>,
 }
 
+struct CertField<T> {
+    offset: usize,
+    cert_field: T,
+}
 
+fn get_field<'a, T>(cert: &'a [u8], offset: usize) -> Result<CertField<T>, &'static str>
+where
+    T: serde::de::Deserialize<'a>,
+{
+    let r = &cert[offset..];
+    let mut d = Deserializer::from_slice(&r);
 
+    let cert_field = CertField {
+        cert_field: serde::de::Deserialize::deserialize(&mut d).unwrap(),
+        offset: offset + d.byte_offset(),
+    };
+
+    Ok(cert_field)
+}
 
 fn decode_native(cert: Vec<u8>) -> Result<CBORCertificate, &'static str> {
-    let mut d = Deserializer::from_slice(&cert);
+    let cbor_cert_type: CertField<u8> = get_field(&cert, 0).unwrap();
+    let cert_serial_number: CertField<&[u8]> = get_field(&cert, cbor_cert_type.offset).unwrap();
+    let issuer: CertField<&[u8]> = get_field(&cert, cert_serial_number.offset).unwrap();
+    let validity_not_before: CertField<i128> = get_field(&cert, issuer.offset).unwrap();
+    let validity_not_after: CertField<i128> = get_field(&cert, validity_not_before.offset).unwrap();
+    let subject: CertField<&[u8]> = get_field(&cert, validity_not_after.offset).unwrap();
+    let subject_pk_alg: CertField<i16> = get_field(&cert, subject.offset).unwrap();
+    let subject_pk: CertField<&[u8]> = get_field(&cert, subject_pk_alg.offset).unwrap();
+    let extensions: CertField<i16> = get_field(&cert, subject_pk.offset).unwrap();
+    let issuer_sgn_alg: CertField<i16> = get_field(&cert, extensions.offset).unwrap();
+    let signature: CertField<&[u8]> = get_field(&cert, issuer_sgn_alg.offset).unwrap();
 
-    //1) type
-    let cbor_cert_type: u8 = serde::de::Deserialize::deserialize(&mut d).unwrap();
+    //here we get the signed data
+    let signed_data = cert[..issuer_sgn_alg.offset].to_vec();
 
-    //2) serial number
-    let mut offset: usize = d.byte_offset();
-    let r = &cert[offset..];
-    let mut d = Deserializer::from_slice(&r);
-    let cert_serial_number: &[u8] = serde::de::Deserialize::deserialize(&mut d).unwrap();
-
-    //3) issuer
-    offset += d.byte_offset();
-    let r = &cert[offset..];
-    let mut d = Deserializer::from_slice(&r);
-    let issuer: &[u8] = serde::de::Deserialize::deserialize(&mut d).unwrap();
-
-    //4) Validity not before
-    offset += d.byte_offset();
-    let r = &cert[offset..];
-    let mut d = Deserializer::from_slice(&r);
-    let validity_not_before: i128 = serde::de::Deserialize::deserialize(&mut d).unwrap();
-
-    //4) Validity not after
-    offset += d.byte_offset();
-    let r = &cert[offset..];
-    let mut d = Deserializer::from_slice(&r);
-    let validity_not_after: i128 = serde::de::Deserialize::deserialize(&mut d).unwrap();
-
-    //4) subject
-    offset += d.byte_offset();
-    let r = &cert[offset..];
-    let mut d = Deserializer::from_slice(&r);
-    let subject: &[u8] = serde::de::Deserialize::deserialize(&mut d).unwrap();
-
-    //5 subject_pk_alg
-    offset += d.byte_offset();
-    let r = &cert[offset..];
-    let mut d = Deserializer::from_slice(&r);
-    let subject_pk_alg: i16 = serde::de::Deserialize::deserialize(&mut d).unwrap();
-
-    //6) subject_pk
-    offset += d.byte_offset();
-    let r = &cert[offset..];
-    let mut d = Deserializer::from_slice(&r);
-    let subject_pk: &[u8] = serde::de::Deserialize::deserialize(&mut d).unwrap();
-
-    //7) extensions
-    offset += d.byte_offset();
-    let r = &cert[offset..];
-    let mut d = Deserializer::from_slice(&r);
-    let extensions: i16 = serde::de::Deserialize::deserialize(&mut d).unwrap();
-
-    //8) issuer_sgn_alg
-    offset += d.byte_offset();
-    let r = &cert[offset..];
-    let mut d = Deserializer::from_slice(&r);
-    let issuer_sgn_alg: i16 = serde::de::Deserialize::deserialize(&mut d).unwrap();
-
-    //9) signature
-    offset += d.byte_offset();
-    let r = &cert[offset..];
-    let mut d = Deserializer::from_slice(&r);
-    let signature: &[u8] = serde::de::Deserialize::deserialize(&mut d).unwrap();
+    
 
     println!("-----------------------------------------------------");
-    println!("cbor_cert_type is: {:?}", cbor_cert_type);
-    println!("cert_serial_number is: {:02x?}", cert_serial_number);
-    println!("issuer is: {:?}", issuer);
-    println!("validity_not_before is: {:?}", validity_not_before);
-    println!("validity_not_after is: {:?}", validity_not_after);
-    println!("subject is: {:02x?}", subject);
-    println!("subject_pk_alg is: {:}", subject_pk_alg);
-    println!("subject_pk is: {:?}", subject_pk);
-    println!("extensions is: {:}", extensions);
-    println!("issuer_sgn_alg is: {:}", issuer_sgn_alg);
-    println!("signature is: {:?}", signature);
+    println!("cbor_cert_type is: {:?}", cbor_cert_type.cert_field);
+    println!(
+        "cert_serial_number is: {:02x?}",
+        cert_serial_number.cert_field
+    );
+    println!("issuer is: {:?}", issuer.cert_field);
+    println!(
+        "validity_not_before is: {:?}",
+        validity_not_before.cert_field
+    );
+    println!("validity_not_after is: {:?}", validity_not_after.cert_field);
+    println!("subject is: {:02x?}", subject.cert_field);
+    println!("subject_pk_alg is: {:}", subject_pk_alg.cert_field);
+    println!("subject_pk is: {:02x?}", subject_pk.cert_field);
+    println!("extensions is: {:}", extensions.cert_field);
+    println!("issuer_sgn_alg is: {:}", issuer_sgn_alg.cert_field);
+    println!("signed_data is: {:02x?}", signed_data);
+    println!("signature is: {:02x?}", signature.cert_field);
     println!("-----------------------------------------------------");
 
-    let signed_data = TBSCertificate {
-        cbor_cert_type,
-        cert_serial_number: cert_serial_number.to_vec(),
-        issuer: issuer.to_vec(),
-        validity_not_before,
-        validity_not_after,
-        subject: subject.to_vec(),
-        subject_pk_alg,
-        subject_pk: subject_pk.to_vec(),
-        extensions,
-        issuer_sgn_alg,
+    let decoded_data = TBSCertificate {
+        cbor_cert_type: cbor_cert_type.cert_field,
+        cert_serial_number: cert_serial_number.cert_field.to_vec(),
+        issuer: issuer.cert_field.to_vec(),
+        validity_not_before: validity_not_before.cert_field,
+        validity_not_after: validity_not_after.cert_field,
+        subject: subject.cert_field.to_vec(),
+        subject_pk_alg: subject_pk_alg.cert_field,
+        subject_pk: subject_pk.cert_field.to_vec(),
+        extensions: extensions.cert_field,
+        issuer_sgn_alg: issuer_sgn_alg.cert_field,
     };
 
     Ok(CBORCertificate {
         signed_data,
-        signature: signature.to_vec(),
+        decoded_data,
+        signature: signature.cert_field.to_vec(),
     })
 }
 
@@ -164,16 +142,26 @@ mod tests {
             0xC0, 0x35, 0x4F, 0xA0, 0x56, 0xDB, 0xAE, 0xA6,
         ];
 
-        assert_eq!(d.signed_data.cbor_cert_type, e.cbor_cert_type);
-        assert_eq!(d.signed_data.cert_serial_number, e.cert_serial_number);
-        assert_eq!(d.signed_data.issuer, e.issuer);
-        assert_eq!(d.signed_data.validity_not_before, e.validity_not_before);
-        assert_eq!(d.signed_data.validity_not_after, e.validity_not_after);
-        assert_eq!(d.signed_data.subject, e.subject);
-        assert_eq!(d.signed_data.subject_pk_alg, e.subject_pk_alg);
-        assert_eq!(d.signed_data.subject_pk, e.subject_pk);
-        assert_eq!(d.signed_data.extensions, e.extensions);
-        assert_eq!(d.signed_data.issuer_sgn_alg, e.issuer_sgn_alg);
+        let expected_signed_data = vec![
+            0x01, 0x43, 0x01, 0xF5, 0x0D, 0x6B, 0x52, 0x46, 0x43, 0x20, 0x74, 0x65, 0x73, 0x74,
+            0x20, 0x43, 0x41, 0x1A, 0x5E, 0x0B, 0xE1, 0x00, 0x1A, 0x60, 0x18, 0x96, 0x00, 0x46,
+            0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0x01, 0x58, 0x21, 0x02, 0xB1, 0x21, 0x6A, 0xB9,
+            0x6E, 0x5B, 0x3B, 0x33, 0x40, 0xF5, 0xBD, 0xF0, 0x2E, 0x69, 0x3F, 0x16, 0x21, 0x3A,
+            0x04, 0x52, 0x5E, 0xD4, 0x44, 0x50, 0xB1, 0x01, 0x9C, 0x2D, 0xFD, 0x38, 0x38, 0xAB,
+            0x01, 0x06,
+        ];
+
+        assert_eq!(d.decoded_data.cbor_cert_type, e.cbor_cert_type);
+        assert_eq!(d.decoded_data.cert_serial_number, e.cert_serial_number);
+        assert_eq!(d.decoded_data.issuer, e.issuer);
+        assert_eq!(d.decoded_data.validity_not_before, e.validity_not_before);
+        assert_eq!(d.decoded_data.validity_not_after, e.validity_not_after);
+        assert_eq!(d.decoded_data.subject, e.subject);
+        assert_eq!(d.decoded_data.subject_pk_alg, e.subject_pk_alg);
+        assert_eq!(d.decoded_data.subject_pk, e.subject_pk);
+        assert_eq!(d.decoded_data.extensions, e.extensions);
+        assert_eq!(d.decoded_data.issuer_sgn_alg, e.issuer_sgn_alg);
         assert_eq!(d.signature, expected_sgn);
+        assert_eq!(d.signed_data, expected_signed_data);
     }
 }
