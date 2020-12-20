@@ -1,20 +1,48 @@
 use ed25519_dalek::Keypair;
 use rand::rngs::OsRng;
 
-use crate::config::{Config, SignatureAlgorithm};
+use crate::algorithm::Algorithm;
+use crate::saving::File;
+use crate::saving::Out;
 
-use crate::files::save_file;
-
-pub fn key_gen(conf: Config) -> Result<(), &'static str> {
-    match conf.algorithm {
-        SignatureAlgorithm::Ed25519 => {
-            let mut csprng = OsRng {};
-            let keypair: Keypair = Keypair::generate(&mut csprng);
-            println!("Secret key: {:X?}", keypair.secret.to_bytes());
-            println!("Public key: {:X?}", keypair.public.to_bytes());
-            save_file(&conf.out_files[0], keypair.secret.to_bytes());
-        }
-        SignatureAlgorithm::C25519 => {}
-    }
-    Ok(())
+pub struct KeyGenConf {
+    pub algorithm: Algorithm,
+    pub out_files: Vec<File>,
 }
+
+pub struct OutEd25519Data<'a> {
+    pub sk: [u8; 32],
+    pub pk: [u8; 32],
+    pub out_files: &'a [File],
+}
+
+impl KeyGenConf {
+    pub fn key_gen(&self) -> Out {
+        match self.algorithm {
+            Algorithm::Ed25519 => {
+                let mut csprng = OsRng {};
+                let keypair: Keypair = Keypair::generate(&mut csprng);
+                let sk = keypair.secret.to_bytes();
+                let pk = keypair.public.to_bytes();
+                println!("Secret key: {:X?}", sk);
+                println!("Public key: {:X?}", pk);
+                let out_files = &self.out_files[..];
+
+                Out::OutEd25519(OutEd25519Data { sk, pk, out_files })
+            } // Algorithm::C25519 => {}
+        }
+    }
+}
+
+// pub fn key_gen(conf: Config) -> Result<(), &'static str> {
+//     match conf.algorithm {
+//         Algorithm::Ed25519 => {
+//             let mut csprng = OsRng {};
+//             let keypair: Keypair = Keypair::generate(&mut csprng);
+//             println!("Secret key: {:X?}", keypair.secret.to_bytes());
+//             println!("Public key: {:X?}", keypair.public.to_bytes());
+//         }
+//         Algorithm::C25519 => {}
+//     }
+//     Ok(())
+// }
