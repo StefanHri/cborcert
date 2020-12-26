@@ -6,6 +6,7 @@ use std::io;
 
 #[derive(Debug)]
 pub enum CborCertError {
+    SerDe(toml::de::Error),
     Io(io::Error),
     UnknownFileFormat,
     TooManyArguments,
@@ -17,6 +18,7 @@ pub enum CborCertError {
 impl fmt::Display for CborCertError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
+            CborCertError::SerDe(ref err) => err.fmt(f),
             CborCertError::Io(ref err) => err.fmt(f),
             CborCertError::UnknownFileFormat => write!(f, "Unknown file format."),
             CborCertError::TooManyArguments => write!(f, "Too many arguments."),
@@ -56,5 +58,11 @@ impl fmt::Display for CborCertError {
 impl From<io::Error> for CborCertError {
     fn from(err: io::Error) -> CborCertError {
         CborCertError::Io(err)
+    }
+}
+
+impl From<toml::de::Error> for CborCertError {
+    fn from(err: toml::de::Error) -> CborCertError {
+        CborCertError::SerDe(err)
     }
 }

@@ -21,12 +21,14 @@ impl Saving for Out<'_> {
     }
 }
 
+#[derive(Debug, PartialEq)]
 pub enum FileFormat {
     C,
     DER,
-    //    PEM,
+    TOML,
 }
 pub struct File {
+    pub full_name: String,
     pub name: String,
     pub format: FileFormat,
 }
@@ -53,12 +55,14 @@ impl Saving for OutEd25519Data<'_> {
                             self.pk.iter().format(", ")
                         ),
                     )
+                    //todo remove expect -> use proper error handling
                     .expect("Unable to write file");
                 }
-                // FileFormat::PEM => {
-                //     fs::write(&file.name, self.sk).expect("Unable to write file");
-                // }
+                FileFormat::TOML => {
+                    panic!("A key cannot be saved in toml file!");
+                }
                 FileFormat::DER => {
+                    println!("file.name {}:", file.name);
                     fs::write(format!("{}_sk_ed25519.der", file.name), self.sk)
                         .expect("Unable to write file");
                     fs::write(format!("{}_pk_ed25519.der", file.name), self.pk)

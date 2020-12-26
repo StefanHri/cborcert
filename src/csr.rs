@@ -1,9 +1,15 @@
 use crate::saving::File;
 use crate::saving::Out;
+use serde::Deserialize;
 
+#[derive(Debug, Deserialize)]
 pub struct CSRSignedData {
-    pub subject_common_name: Vec<u8>,
-    pub public_key: Vec<u8>,
+    cbor_certificate_type: u8,
+    subject_common_name: String,
+    validity_not_before: u64,
+    validity_not_after: u64,
+    subject_public_key_algorithm: u8,
+    extensions: u8,
 }
 
 pub struct CSRContent {

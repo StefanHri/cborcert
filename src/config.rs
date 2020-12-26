@@ -4,6 +4,7 @@ use crate::error::CborCertError;
 use crate::execution::Config;
 use crate::keygen::KeyGenConf;
 use crate::saving::{File, FileFormat};
+use std::io::Read;
 
 pub enum Command {
     KeyGen,
@@ -40,7 +41,26 @@ impl Config {
         }
         Ok(())
     }
+
+    /// Gets a vector of files (type File) from a slice of strings
     fn get_out_files(in_vec: &[&str]) -> Result<Vec<File>, CborCertError> {
+        Config::get_files(in_vec, &[FileFormat::C, FileFormat::DER])
+    }
+
+    /// pars the csr content from a toml file to a CSRSignedData struct
+    fn get_csr_content(file: &str) -> Result<CSRSignedData, CborCertError> {
+        let f = Config::get_files(&[file], &[FileFormat::TOML])?;
+        let mut csr_toml = String::new();
+        let mut fh = std::fs::File::open(&f[0].full_name)?;
+        fh.read_to_string(&mut csr_toml)?;
+
+        let csr_data: CSRSignedData = toml::from_str(&csr_toml)?;
+        println!("csr_data: {:?}", csr_data);
+        Ok(csr_data)
+    }
+
+    ///coverts a slice of strings to a vector of File
+    fn get_files(in_vec: &[&str], formats: &[FileFormat]) -> Result<Vec<File>, CborCertError> {
         let mut out_files = Vec::new();
         for file in in_vec {
             let mut split = file.split(".");
@@ -49,25 +69,37 @@ impl Config {
                 .ok_or(CborCertError::NoPointInFileName)?
                 .to_string();
             let format_str = split.next().ok_or(CborCertError::NoPointInFileName)?;
-            let format;
-            match format_str {
-                "c" => format = FileFormat::C,
-                "der" => format = FileFormat::DER,
-                _ => return Err(CborCertError::UnknownFileFormat),
+
+            if format_str != "c" && format_str != "der" && format_str != "toml" {
+                return Err(CborCertError::UnknownFileFormat);
             }
-            out_files.push(File { name, format });
+
+            for f in formats {
+                if f == &FileFormat::C && format_str == "c" {
+                    out_files.push(File {
+                        full_name: file.to_string(),
+                        name,
+                        format: FileFormat::C,
+                    });
+                    break;
+                } else if f == &FileFormat::DER && format_str == "der" {
+                    out_files.push(File {
+                        full_name: file.to_string(),
+                        name,
+                        format: FileFormat::DER,
+                    });
+                    break;
+                } else if f == &FileFormat::TOML && format_str == "toml" {
+                    out_files.push(File {
+                        full_name: file.to_string(),
+                        name,
+                        format: FileFormat::TOML,
+                    });
+                    break;
+                }
+            }
         }
         Ok(out_files)
-    }
-    fn get_csr_content(file: &str) -> Result<CSRSignedData, CborCertError> {
-        //todo check the file format
-
-        //pars out the the CSR data to be signed from the .toml file
-        let csr2sign_data = CSRSignedData {
-            subject_common_name: vec![1, 2, 3],
-            public_key: vec![1, 2, 3],
-        };
-        Ok(csr2sign_data)
     }
 }
 

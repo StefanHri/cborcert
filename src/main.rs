@@ -56,7 +56,7 @@ fn main() {
 
     if let Some(args) = matches.values_of("CSRGEN"){
         let config = Config::new(
-            Command::KeyGen, args.collect())
+            Command::CSRGen, args.collect())
             .unwrap_or_else(|err| {
             eprintln!("Problem parsing arguments: {}", err);
             process::exit(1);
