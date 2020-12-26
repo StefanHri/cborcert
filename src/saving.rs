@@ -1,3 +1,4 @@
+use crate::csr::OutCSR;
 use crate::keygen::OutEd25519Data;
 use itertools::Itertools;
 use std::fs;
@@ -8,12 +9,14 @@ pub trait Saving {
 
 pub enum Out<'a> {
     OutEd25519(OutEd25519Data<'a>),
+    OutCSR(OutCSR<'a>),
 }
 
 impl Saving for Out<'_> {
     fn save(&self) {
         match self {
             Out::OutEd25519(ed25519_data) => ed25519_data.save(),
+            Out::OutCSR(_not_implemented_yet) => panic!("bot implemented yet"),
         }
     }
 }

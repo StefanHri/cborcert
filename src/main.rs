@@ -9,6 +9,8 @@ mod saving;
 //mod cert;
 mod execution;
 mod algorithm;
+mod csr;
+mod error;
 use config::{ Command};
 use execution::{Config,Execution};
 use saving::Saving;
@@ -27,13 +29,22 @@ fn main() {
             .takes_value(true)
             .multiple(true)
             .help("Generates a random asymmetric keypair. Example: cborcert -k ed25519 ca/ca.c ca/ca.der")   
+        )
+        .arg(Arg::with_name("CSRGEN")
+            .short("r")
+            .long("csr-gen")
+            .takes_value(true)
+            .multiple(true)
+            .help("Generates a certificate signature request. Example: cborcert -r in.toml csr.c csr.der")   
         )     
         .get_matches();
 
 
     if let Some(args) = matches.values_of("KEYGEN"){
 
-    let config = Config::new(Command::KeyGen, args.collect()).unwrap_or_else(|err| {
+    let config = Config::new(
+        Command::KeyGen, args.collect())
+        .unwrap_or_else(|err| {
         eprintln!("Problem parsing arguments: {}", err);
         process::exit(1);
     });
@@ -41,5 +52,16 @@ fn main() {
     config.execute().save();
 
     }
+
+
+    if let Some(args) = matches.values_of("CSRGEN"){
+        let config = Config::new(
+            Command::KeyGen, args.collect())
+            .unwrap_or_else(|err| {
+            eprintln!("Problem parsing arguments: {}", err);
+            process::exit(1);
+        }); 
+        config.execute().save();
+        }
 }
 

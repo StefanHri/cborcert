@@ -1,63 +1,73 @@
 use crate::algorithm::Algorithm;
+use crate::csr::{CSRGenConf, CSRSignedData};
+use crate::error::CborCertError;
 use crate::execution::Config;
 use crate::keygen::KeyGenConf;
 use crate::saving::{File, FileFormat};
 
 pub enum Command {
     KeyGen,
-    //NativeCertGen,
-    //NonNativeCertGen,
+    CSRGen,
 }
 
-// pub struct Config {
-//     pub algorithm: Algorithm,
-//     pub out_files: Vec<File>,
-// }
-
 impl Config {
-    pub fn new(c: Command, args: Vec<&str>) -> Result<Config, &'static str> {
+    pub fn new(c: Command, args: Vec<&str>) -> Result<Config, CborCertError> {
         match c {
             Command::KeyGen => {
-                if args.len() > 4 {
-                    return Err("Too much arguments for ..!");
-                }
-                if args.len() < 2 {
-                    return Err("Too few arguments for ..!");
-                }
+                Config::num_arguments_check(&args, 3, 2)?;
 
-                let algorithm;
-                match args[0] {
-                    "ed25519" => algorithm = Algorithm::Ed25519,
-                    //"c25519" => algorithm = Algorithm::C25519,
-                    _ => return Err("Unsupported algorithm!"),
-                }
-
-                let mut out_files = Vec::new();
-                for i in 1..args.len() {
-                    let mut split = args[i].split(".");
-                    //todo handle unwrap properly
-                    let name = split.next().unwrap().to_string();
-                    let formatstr = split.next().unwrap();
-                    let format;
-                    match formatstr {
-                        "c" => format = FileFormat::C,
-                        //"pem" => format = FileFormat::PEM,
-                        "der" => format = FileFormat::DER,
-                        _ => return Err("Unsupported file format!"),
-                    }
-                    out_files.push(File { name, format });
-                }
                 Ok(Config::KeyGen(KeyGenConf {
-                    algorithm,
-                    out_files,
+                    algorithm: Algorithm::alg_from_string(&args[0])?,
+                    out_files: Config::get_out_files(&args[1..])?,
                 }))
-            } // Command::NativeCertGen => {
-              //     return Err("Not implemented yet!");
-              // }
-              // Command::NonNativeCertGen => {
-              //     return Err("Not implemented yet!");
-              // }
+            }
+            Command::CSRGen => {
+                Config::num_arguments_check(&args, 3, 2)?;
+                Ok(Config::CSRGen(CSRGenConf {
+                    content: Config::get_csr_content(&args[0])?,
+                    out_files: Config::get_out_files(&args[1..])?,
+                }))
+            }
         }
+    }
+
+    fn num_arguments_check(args: &[&str], max: usize, min: usize) -> Result<(), CborCertError> {
+        if args.len() > max {
+            return Err(CborCertError::TooManyArguments);
+        }
+        if args.len() < min {
+            return Err(CborCertError::TooFewArguments);
+        }
+        Ok(())
+    }
+    fn get_out_files(in_vec: &[&str]) -> Result<Vec<File>, CborCertError> {
+        let mut out_files = Vec::new();
+        for file in in_vec {
+            let mut split = file.split(".");
+            let name = split
+                .next()
+                .ok_or(CborCertError::NoPointInFileName)?
+                .to_string();
+            let format_str = split.next().ok_or(CborCertError::NoPointInFileName)?;
+            let format;
+            match format_str {
+                "c" => format = FileFormat::C,
+                "der" => format = FileFormat::DER,
+                _ => return Err(CborCertError::UnknownFileFormat),
+            }
+            out_files.push(File { name, format });
+        }
+        Ok(out_files)
+    }
+    fn get_csr_content(file: &str) -> Result<CSRSignedData, CborCertError> {
+        //todo check the file format
+
+        //pars out the the CSR data to be signed from the .toml file
+        let csr2sign_data = CSRSignedData {
+            subject_common_name: vec![1, 2, 3],
+            public_key: vec![1, 2, 3],
+        };
+        Ok(csr2sign_data)
     }
 }
 
@@ -66,11 +76,32 @@ mod tests {
     use super::*;
 
     #[test]
-    fn ed25519_key_gen() {
-        // let in_params = vec!["ed25519", "ca.c"];
-        // let config = Config::new(Command::SgnKeyGen, in_params).unwrap();
+    fn num_arguments_check_test() {
+        let in_params = vec!["ed25519", "ca.c", "ca.der"];
+        assert!(matches!(
+            Config::num_arguments_check(&in_params, 3, 2),
+            Ok(())
+        ));
+        assert!(matches!(
+            Config::num_arguments_check(&in_params, 2, 2),
+            Err(CborCertError::TooManyArguments)
+        ));
+        assert!(matches!(
+            Config::num_arguments_check(&in_params, 5, 4),
+            Err(CborCertError::TooFewArguments)
+        ));
+    }
 
-        // assert!(matches!(config.algorithm, Algorithm::Ed25519));
+    #[test]
+    fn ed25519_key_gen() {
+        let in_params = vec!["ed25519", "ca.c"];
+        let config = Config::new(Command::KeyGen, in_params).unwrap();
+
+        match config {
+            Config::KeyGen(x) => assert!(matches!(x.algorithm, Algorithm::Ed25519)),
+            Config::CSRGen(_x) => assert!(false),
+        };
+
         // assert!(matches!(config.out_files[0].format, FileFormat::C));
         // assert_eq!(config.out_files[0].name, String::from("ca"));
     }
