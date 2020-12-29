@@ -15,6 +15,8 @@ pub enum CborCertError {
     TooFewArguments,
     NoPointInFileName,
     UnsupportedAlgorithm,
+    KeyCannotBeSavedInTomlFile,
+    CSRCannotBeSavedInTomlFile,
 }
 
 impl fmt::Display for CborCertError {
@@ -31,6 +33,12 @@ impl fmt::Display for CborCertError {
                 write!(f, "The file must have a format, e.g, key.der oder key.c.")
             }
             CborCertError::UnsupportedAlgorithm => write!(f, "Unsupported algorithm."),
+            CborCertError::KeyCannotBeSavedInTomlFile => {
+                write!(f, "A key cannot be saved in .toml file.")
+            }
+            CborCertError::CSRCannotBeSavedInTomlFile => {
+                write!(f, "A CSR cannot be saved in .toml file.")
+            }
         }
     }
 }

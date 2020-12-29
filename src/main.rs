@@ -14,7 +14,7 @@ mod error;
 use config::{ Command};
 use execution::{Config,Execution};
 use saving::Saving;
-use crate::error::CborCertError;
+
 
 fn main() {
 
@@ -29,14 +29,14 @@ fn main() {
             .long("sgn-key-gen")
             .takes_value(true)
             .multiple(true)
-            .help("Generates a random asymmetric keypair. Example: cborcert -k ed25519 ca/ca.c ca/ca.der")   
+            .help("Generates a random asymmetric keypair. Example: cborcert -k ed25519 ca/ca.c ca/ca.der. ed25519 is the used algorithm. ca.c and ca.der are files where the key is saved.")   
         )
         .arg(Arg::with_name("CSRGEN")
             .short("r")
             .long("csr-gen")
             .takes_value(true)
             .multiple(true)
-            .help("Generates a certificate signature request. Example: cborcert -r in.toml pk.der sk.der csr.c csr.der")   
+            .help("Generates a certificate signature request. Example: cborcert -r in.toml pk.der sk.der csr.c csr.der. The .toml file contains metadata of the SCR. The pk.der sk.der contain the own secret and private key. The csr.c csr.der are files where the csr is saved.")   
         )     
         .get_matches();
 
@@ -53,8 +53,10 @@ fn main() {
     config.execute().unwrap_or_else(|err| {
         eprintln!("Problem during executing the command: {}", err);
         process::exit(1);
-    }).save();
-
+    }).save().unwrap_or_else(|err| {
+        eprintln!("Problem during saving the results: {}", err);
+        process::exit(1);
+    });
     }
 
 
@@ -68,7 +70,10 @@ fn main() {
         config.execute().unwrap_or_else(|err| {
             eprintln!("Problem during executing the command: {}", err);
             process::exit(1);
-        }).save();
+        }).save().unwrap_or_else(|err| {
+            eprintln!("Problem during saving the results: {}", err);
+            process::exit(1);
+        });
         }
 }
 

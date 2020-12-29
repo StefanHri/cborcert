@@ -1,10 +1,11 @@
 use crate::csr::OutCSR;
+use crate::error::CborCertError;
 use crate::keygen::OutEd25519Data;
 use itertools::Itertools;
 use std::fs;
 
 pub trait Saving {
-    fn save(&self);
+    fn save(&self) -> Result<(), CborCertError>;
 }
 
 pub enum Out<'a> {
@@ -13,10 +14,10 @@ pub enum Out<'a> {
 }
 
 impl Saving for Out<'_> {
-    fn save(&self) {
+    fn save(&self) -> Result<(), CborCertError> {
         match self {
             Out::OutEd25519(ed25519_data) => ed25519_data.save(),
-            Out::OutCSR(_not_implemented_yet) => panic!("bot implemented yet"),
+            Out::OutCSR(csr_data) => csr_data.save(),
         }
     }
 }
@@ -39,9 +40,12 @@ const C_HEADER: &str = "/*
 const ED25519_META: &str = "
     It contains random Ed25519 signature keys.
 */\n\n";
+const CSR_META: &str = "
+    It contains a Certificate Signing Request (CSR).
+*/\n\n";
 
 impl Saving for OutEd25519Data<'_> {
-    fn save(&self) {
+    fn save(&self) -> Result<(), CborCertError> {
         for file in self.out_files {
             match &file.format {
                 FileFormat::C => {
@@ -54,39 +58,46 @@ impl Saving for OutEd25519Data<'_> {
                             self.sk.iter().format(", "),
                             self.pk.iter().format(", ")
                         ),
-                    )
-                    //todo remove expect -> use proper error handling
-                    .expect("Unable to write file");
+                    )?;
                 }
                 FileFormat::TOML => {
-                    panic!("A key cannot be saved in toml file!");
+                    return Err(CborCertError::KeyCannotBeSavedInTomlFile);
                 }
                 FileFormat::DER => {
                     println!("file.name {}:", file.name);
-                    fs::write(format!("{}_sk_ed25519.der", file.name), self.sk)
-                        .expect("Unable to write file");
-                    fs::write(format!("{}_pk_ed25519.der", file.name), self.pk)
-                        .expect("Unable to write file");
+                    fs::write(format!("{}_sk_ed25519.der", file.name), self.sk)?;
+                    fs::write(format!("{}_pk_ed25519.der", file.name), self.pk)?;
                 }
             }
         }
+        Ok(())
     }
 }
 
-// pub fn save_file(file: &File, data: [u8; 32]) -> Result<(), &'static str> {
-//     match &file.format {
-//         FileFormat::C => {
-//             fs::write(format!("{}.c", file.name),format!("{:#04x?}",data)
-//             ).expect("Unable to write file");
-//             Ok(())
-//         }
-//         FileFormat::PEM => {
-//             fs::write(&file.name, data).expect("Unable to write file");
-//             Ok(())
-//         }
-//         FileFormat::DER => {
-//             fs::write(&file.name, data).expect("Unable to write file");
-//             Ok(())
-//         }
-//     }
-// }
+impl Saving for OutCSR<'_> {
+    fn save(&self) -> Result<(), CborCertError> {
+        for file in self.out_files {
+            match &file.format {
+                FileFormat::C => {
+                    fs::write(
+                        format!("{}.c", file.name),
+                        format!(
+                            "{}{}const char csr []= {{ {:#04x} }};\n\nconst unsigned int csr_len = sizeof(csr);",
+                            C_HEADER,
+                            CSR_META,
+                            self.csr.iter().format(", "),
+                        ),
+                    )?;
+                }
+                FileFormat::TOML => {
+                    return Err(CborCertError::CSRCannotBeSavedInTomlFile);
+                }
+                FileFormat::DER => {
+                    println!("file.name {}:", file.name);
+                    fs::write(format!("{}.der", file.name), &self.csr)?;
+                }
+            }
+        }
+        Ok(())
+    }
+}
