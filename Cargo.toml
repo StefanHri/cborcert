@@ -7,6 +7,7 @@ edition = "2018"
 [dependencies]
 serde = {version = "1.0.118", features = ["derive"] }
 serde_cbor = "0.11.1"
+serde_bytes = "0.11.5"
 ed25519-dalek = "1.0.1"
 clap = "2.33.3"
 rand = "0.7.3"

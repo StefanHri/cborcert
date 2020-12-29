@@ -1,5 +1,5 @@
 use crate::algorithm::Algorithm;
-use crate::csr::{CSRGenConf, CSRSignedData};
+use crate::csr::{CSRGenConf, CSRMetaData};
 use crate::error::CborCertError;
 use crate::execution::Config;
 use crate::keygen::KeyGenConf;
@@ -23,15 +23,18 @@ impl Config {
                 }))
             }
             Command::CSRGen => {
-                Config::num_arguments_check(&args, 3, 2)?;
+                Config::num_arguments_check(&args, 5, 4)?;
                 Ok(Config::CSRGen(CSRGenConf {
-                    content: Config::get_csr_content(&args[0])?,
-                    out_files: Config::get_out_files(&args[1..])?,
+                    csr_meta_data: Config::get_csr_content(&args[0])?,
+                    pk: Config::get_der_file_content(&args[1])?,
+                    sk: Config::get_der_file_content(&args[2])?,
+                    out_files: Config::get_out_files(&args[3..])?,
                 }))
             }
         }
     }
 
+    ///checks the number of arguments
     fn num_arguments_check(args: &[&str], max: usize, min: usize) -> Result<(), CborCertError> {
         if args.len() > max {
             return Err(CborCertError::TooManyArguments);
@@ -42,19 +45,30 @@ impl Config {
         Ok(())
     }
 
+    ///gets the content of a .der file, e.g., a public key or a private key
+    fn get_der_file_content(file: &str) -> Result<Vec<u8>, CborCertError> {
+        let f = Config::get_files(&[file], &[FileFormat::DER])?;
+        let mut fh = std::fs::File::open(&f[0].full_name)?;
+        let metadata = std::fs::metadata(&f[0].full_name)?;
+        let mut buffer = vec![0; metadata.len() as usize];
+        fh.read(&mut buffer)?;
+        println!("{} content is: {:x?}", f[0].full_name, buffer);
+        Ok(buffer)
+    }
+
     /// Gets a vector of files (type File) from a slice of strings
     fn get_out_files(in_vec: &[&str]) -> Result<Vec<File>, CborCertError> {
         Config::get_files(in_vec, &[FileFormat::C, FileFormat::DER])
     }
 
     /// pars the csr content from a toml file to a CSRSignedData struct
-    fn get_csr_content(file: &str) -> Result<CSRSignedData, CborCertError> {
+    fn get_csr_content(file: &str) -> Result<CSRMetaData, CborCertError> {
         let f = Config::get_files(&[file], &[FileFormat::TOML])?;
         let mut csr_toml = String::new();
         let mut fh = std::fs::File::open(&f[0].full_name)?;
         fh.read_to_string(&mut csr_toml)?;
 
-        let csr_data: CSRSignedData = toml::from_str(&csr_toml)?;
+        let csr_data: CSRMetaData = toml::from_str(&csr_toml)?;
         println!("csr_data: {:?}", csr_data);
         Ok(csr_data)
     }

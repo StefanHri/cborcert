@@ -2,6 +2,7 @@ use ed25519_dalek::Keypair;
 use rand::rngs::OsRng;
 
 use crate::algorithm::Algorithm;
+use crate::error::CborCertError;
 use crate::saving::File;
 use crate::saving::Out;
 
@@ -17,7 +18,7 @@ pub struct OutEd25519Data<'a> {
 }
 
 impl KeyGenConf {
-    pub fn key_gen(&self) -> Out {
+    pub fn key_gen(&self) -> Result<Out, CborCertError> {
         match self.algorithm {
             Algorithm::Ed25519 => {
                 let mut csprng = OsRng {};
@@ -28,7 +29,7 @@ impl KeyGenConf {
                 println!("Public key: {:X?}", pk);
                 let out_files = &self.out_files[..];
 
-                Out::OutEd25519(OutEd25519Data { sk, pk, out_files })
+                Ok(Out::OutEd25519(OutEd25519Data { sk, pk, out_files }))
             } // Algorithm::C25519 => {}
         }
     }

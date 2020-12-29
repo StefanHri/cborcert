@@ -14,6 +14,7 @@ mod error;
 use config::{ Command};
 use execution::{Config,Execution};
 use saving::Saving;
+use crate::error::CborCertError;
 
 fn main() {
 
@@ -35,7 +36,7 @@ fn main() {
             .long("csr-gen")
             .takes_value(true)
             .multiple(true)
-            .help("Generates a certificate signature request. Example: cborcert -r in.toml csr.c csr.der")   
+            .help("Generates a certificate signature request. Example: cborcert -r in.toml pk.der sk.der csr.c csr.der")   
         )     
         .get_matches();
 
@@ -49,7 +50,10 @@ fn main() {
         process::exit(1);
     });
 
-    config.execute().save();
+    config.execute().unwrap_or_else(|err| {
+        eprintln!("Problem during executing the command: {}", err);
+        process::exit(1);
+    }).save();
 
     }
 
@@ -61,7 +65,10 @@ fn main() {
             eprintln!("Problem parsing arguments: {}", err);
             process::exit(1);
         }); 
-        config.execute().save();
+        config.execute().unwrap_or_else(|err| {
+            eprintln!("Problem during executing the command: {}", err);
+            process::exit(1);
+        }).save();
         }
 }
 
