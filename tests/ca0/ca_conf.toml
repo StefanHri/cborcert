@@ -1,4 +1,6 @@
-# see for more information how to parse: https://docs.rs/toml/0.5.8/toml/
-issuer = "RFC test CA"
-# ecdsa-with-SHA256 has value 6 see table 8 in https://datatracker.ietf.org/doc/html/draft-mattsson-cose-cbor-cert-compress-05#section-9.6
-issuer_signature_algorithm = 6
+certificate_serial_number = [1, 245, 13]
+issuer = [82, 70, 67, 32, 116, 101, 115, 116, 32, 67, 65] #"RFC test CA"
+validity_not_before = 1577836800
+validity_not_after = 1612224000 
+extensions = 1
+issuer_signature_algorithm = "ecdsa-with-SHA256"

@@ -1,14 +1,17 @@
-use crate::algorithm::Algorithm;
+use crate::algorithm::{Algorithm, PkIanaVal, SgnIanaVal};
+use crate::cert::{CAconf, CertGenConf};
 use crate::csr::{CSRGenConf, CSRMetaData};
 use crate::error::CborCertError;
 use crate::execution::Config;
 use crate::keygen::KeyGenConf;
 use crate::saving::{File, FileFormat};
+use serde::de::DeserializeOwned;
 use std::io::Read;
 
 pub enum Command {
     KeyGen,
     CSRGen,
+    CertGen,
 }
 
 impl Config {
@@ -18,20 +21,41 @@ impl Config {
                 Config::num_arguments_check(&args, 3, 2)?;
 
                 Ok(Config::KeyGen(KeyGenConf {
-                    algorithm: Algorithm::alg_from_string(&args[0])?,
+                    algorithm: Algorithm::new(&args[0])?,
                     out_files: Config::get_out_files(&args[1..])?,
                 }))
             }
             Command::CSRGen => {
                 Config::num_arguments_check(&args, 5, 4)?;
                 Ok(Config::CSRGen(CSRGenConf {
-                    csr_meta_data: Config::get_csr_content(&args[0])?,
+                    csr_meta_data: Config::conf_from_toml(&args[0])?,
                     pk: Config::get_der_file_content(&args[1])?,
                     sk: Config::get_der_file_content(&args[2])?,
                     out_files: Config::get_out_files(&args[3..])?,
                 }))
             }
+            Command::CertGen => {
+                Config::num_arguments_check(&args, 6, 5)?;
+                Ok(Config::CertGen(CertGenConf {
+                    ca_conf: Config::conf_from_toml(&args[0])?,
+                    csr: Config::get_der_file_content(&args[1])?,
+                    ca_pk: Config::get_der_file_content(&args[2])?,
+                    ca_sk: Config::get_der_file_content(&args[3])?,
+                    out_files: Config::get_out_files(&args[4..])?,
+                }))
+            }
         }
+    }
+
+    ///parse the content of ca_conf.toml file
+    fn conf_from_toml<T: DeserializeOwned>(file: &str) -> Result<T, CborCertError> {
+        let f = Config::get_files(&[file], &[FileFormat::TOML])?;
+        let mut toml_str = String::new();
+        let mut fh = std::fs::File::open(&f[0].full_name)?;
+        fh.read_to_string(&mut toml_str)?;
+
+        let conf: T = toml::from_str(&toml_str)?;
+        Ok(conf)
     }
 
     ///checks the number of arguments
@@ -59,18 +83,6 @@ impl Config {
     /// Gets a vector of files (type File) from a slice of strings
     fn get_out_files(in_vec: &[&str]) -> Result<Vec<File>, CborCertError> {
         Config::get_files(in_vec, &[FileFormat::C, FileFormat::DER])
-    }
-
-    /// pars the csr content from a toml file to a CSRSignedData struct
-    fn get_csr_content(file: &str) -> Result<CSRMetaData, CborCertError> {
-        let f = Config::get_files(&[file], &[FileFormat::TOML])?;
-        let mut csr_toml = String::new();
-        let mut fh = std::fs::File::open(&f[0].full_name)?;
-        fh.read_to_string(&mut csr_toml)?;
-
-        let csr_data: CSRMetaData = toml::from_str(&csr_toml)?;
-        println!("csr_data: {:?}", csr_data);
-        Ok(csr_data)
     }
 
     ///coverts a slice of strings to a vector of File
@@ -142,13 +154,17 @@ mod tests {
     fn ed25519_key_gen() {
         let in_params = vec!["ed25519", "ca.c"];
         let config = Config::new(Command::KeyGen, in_params).unwrap();
+        let _name: String = String::from("id-Ed25519");
 
         match config {
-            Config::KeyGen(x) => assert!(matches!(x.algorithm, Algorithm::Ed25519)),
+            Config::KeyGen(x) => {
+                assert!(matches!(x.algorithm.iana_pk, Some(PkIanaVal::IdEd25519)));
+                assert!(matches!(x.algorithm.iana_sgn, Some(SgnIanaVal::IdEd25519)));
+                assert!(matches!(x.algorithm.name_pk, Some(_name)));
+                assert!(matches!(x.algorithm.name_sgn, Some(_name)))
+            }
             Config::CSRGen(_x) => assert!(false),
+            Config::CertGen(_x) => assert!(false),
         };
-
-        // assert!(matches!(config.out_files[0].format, FileFormat::C));
-        // assert_eq!(config.out_files[0].name, String::from("ca"));
     }
 }

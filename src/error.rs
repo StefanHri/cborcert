@@ -17,6 +17,9 @@ pub enum CborCertError {
     UnsupportedAlgorithm,
     KeyCannotBeSavedInTomlFile,
     CSRCannotBeSavedInTomlFile,
+    NoPkAlgorithmWithThisIanaVal,
+    NotASignatureAlgorithm,
+    NoIanaVal,
 }
 
 impl fmt::Display for CborCertError {
@@ -38,6 +41,15 @@ impl fmt::Display for CborCertError {
             }
             CborCertError::CSRCannotBeSavedInTomlFile => {
                 write!(f, "A CSR cannot be saved in .toml file.")
+            }
+            CborCertError::NoPkAlgorithmWithThisIanaVal => {
+                write!(f, "No public key algorithm with this iana value.")
+            }
+            CborCertError::NotASignatureAlgorithm => {
+                write!(f, "This is not a signature algorithm.")
+            }
+            CborCertError::NoIanaVal => {
+                write!(f, "No IANA value.")
             }
         }
     }

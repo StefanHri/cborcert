@@ -1,11 +1,36 @@
-use serde_cbor::Deserializer;
+use crate::algorithm::{Algorithm, SgnIanaVal};
+use crate::csr::{CSRMetaData, CSRSignedData};
+use crate::error::CborCertError;
+use crate::saving::File;
+use crate::saving::Out;
+use serde::Deserialize;
+use serde_bytes::Bytes;
+use serde_cbor::{to_vec, Deserializer};
+
+#[derive(Deserialize)]
+pub struct CAconf {
+    pub certificate_serial_number: Vec<u8>,
+    pub issuer: Vec<u8>,
+    pub validity_not_before: i64,
+    pub validity_not_after: i64,
+    pub extensions: i8, //to do check if this needs to be provided differently in the toml file
+    pub issuer_signature_algorithm: String,
+}
+
+pub struct CertGenConf {
+    pub ca_conf: CAconf,
+    pub csr: Vec<u8>,
+    pub ca_pk: Vec<u8>,
+    pub ca_sk: Vec<u8>,
+    pub out_files: Vec<File>,
+}
 
 struct TBSCertificate {
     cbor_cert_type: u8,
     cert_serial_number: Vec<u8>,
     issuer: Vec<u8>,
-    validity_not_before: i128,
-    validity_not_after: i128,
+    validity_not_before: i64,
+    validity_not_after: i64,
     subject: Vec<u8>,
     subject_pk_alg: i16,
     subject_pk: Vec<u8>,
@@ -19,82 +44,175 @@ struct CBORCertificate {
     signature: Vec<u8>,
 }
 
-struct CertField<T> {
+struct Field<T> {
     offset: usize,
-    cert_field: T,
+    field: T,
 }
 
-fn get_field<'a, T>(cert: &'a [u8], offset: usize) -> Result<CertField<T>, &'static str>
+pub struct OutCert<'a> {
+    pub cert: Vec<u8>,
+    pub out_files: &'a [File],
+}
+
+impl CertGenConf {
+    //to do check the cbor_cer_type 0 or 1 with the test vector
+    pub fn cert_gen(&self) -> Result<Out, CborCertError> {
+        //verify the the csr
+        let csr = csr_verify(&self.csr)?;
+        //start the CBOR encoding
+        //1) cborCertificateType
+        let mut encoded_signed_data = to_vec(&csr.scr_meta_data.cbor_cert_type)?;
+        //2) certificateSerialNumber
+        encoded_signed_data.extend(
+            to_vec(&Bytes::new(&self.ca_conf.certificate_serial_number))?
+                .iter()
+                .cloned(),
+        );
+        //3) issuer
+        encoded_signed_data.extend(to_vec(&Bytes::new(&self.ca_conf.issuer))?.iter().cloned());
+        //4) validityNotBefore
+        encoded_signed_data.extend(to_vec(&self.ca_conf.validity_not_before)?.iter().cloned());
+        //5) validityNotAfter
+        encoded_signed_data.extend(to_vec(&self.ca_conf.validity_not_after)?.iter().cloned());
+        //6) subject
+        encoded_signed_data.extend(
+            to_vec(&Bytes::new(&csr.scr_meta_data.subject_common_name))?
+                .iter()
+                .cloned(),
+        );
+        //7) subjectPublicKeyAlgorithm
+        let alg = Algorithm::new(&csr.scr_meta_data.subject_pk_alg)?;
+        encoded_signed_data.extend(
+            to_vec(&alg.iana_pk_as_u8()?)?
+                .iter()
+                .cloned(),
+        );
+        //8) subjectPublicKey
+        encoded_signed_data.extend(to_vec(&Bytes::new(&csr.pk))?.iter().cloned());
+        //9) extensions
+        encoded_signed_data.extend(to_vec(&self.ca_conf.extensions)?.iter().cloned());
+        //10) issuerSignatureAlgorithm
+        encoded_signed_data.extend(
+            to_vec(&alg.iana_sgn_as_u8()?)?
+                .iter()
+                .cloned(),
+        );
+
+        //calculate signature
+        let signature = alg.sign(&self.ca_pk, &self.ca_sk, &encoded_signed_data)?;
+        let mut cert = encoded_signed_data;
+        cert.extend(to_vec(&Bytes::new(&signature))?.iter().cloned());
+
+        Ok(Out::OutCert(OutCert {
+            cert: cert,
+            out_files: &self.out_files,
+        }))
+    }
+
+    fn csr_verify(csr: Vec<u8>) -> Result<CSRMetaData, CborCertError> {
+        let cbor_cert_type: Field<u8> = get_field(&csr, 0)?;
+        let subject_cn: Field<&[u8]> = get_field(&csr, cbor_cert_type.offset)?;
+        let subject_pk_alg: Field<u8> = get_field(&csr, subject_cn.offset)?;
+        let pk: Field<&[u8]> = get_field(&csr, subject_pk_alg.offset)?;
+        let signature: Field<&[u8]> = get_field(&csr, pk.offset)?;
+        let signed_data = csr[..pk.offset].to_vec();
+        let alg = Algorithm::new_sgn_alg_from_num(subject_pk_alg.field)?;
+        alg.verify(&signed_data, signature.field, pk.field)?;
+        Ok(CSRMetaData {
+            cbor_cert_type: cbor_cert_type.field,
+            subject_common_name: subject_cn.field.to_vec(),
+            subject_pk_alg: alg.name_pk_as_string()?,
+        })
+    }
+}
+
+fn get_field<'a, T>(cert: &'a [u8], offset: usize) -> Result<Field<T>, CborCertError>
 where
     T: serde::de::Deserialize<'a>,
 {
     let r = &cert[offset..];
     let mut d = Deserializer::from_slice(&r);
 
-    let cert_field = CertField {
-        cert_field: serde::de::Deserialize::deserialize(&mut d).unwrap(),
+    let field = Field {
+        field: serde::de::Deserialize::deserialize(&mut d)?,
         offset: offset + d.byte_offset(),
     };
 
-    Ok(cert_field)
+    Ok(field)
+}
+
+fn csr_verify(csr: &[u8]) -> Result<CSRSignedData, CborCertError> {
+    let cbor_cert_type: Field<u8> = get_field(&csr, 0)?;
+    let subject_cn: Field<&[u8]> = get_field(&csr, cbor_cert_type.offset)?;
+    let subject_pk_alg: Field<u8> = get_field(&csr, subject_cn.offset)?;
+    let pk: Field<&[u8]> = get_field(&csr, subject_pk_alg.offset)?;
+    let signature: Field<&[u8]> = get_field(&csr, pk.offset)?;
+
+    let signed_data = csr[..pk.offset].to_vec();
+
+    let alg = Algorithm::new_sgn_alg_from_num(subject_pk_alg.field)?;
+    alg.verify(&signed_data, signature.field, pk.field)?;
+
+    let scr_meta_data = CSRMetaData {
+        cbor_cert_type: cbor_cert_type.field,
+        subject_common_name: subject_cn.field.to_vec(),
+        subject_pk_alg: alg.name_pk_as_string()?,
+    };
+
+    Ok(CSRSignedData {
+        scr_meta_data: scr_meta_data,
+        pk: pk.field.to_vec(),
+    })
 }
 
 fn decode_native(cert: Vec<u8>) -> Result<CBORCertificate, &'static str> {
-    let cbor_cert_type: CertField<u8> = get_field(&cert, 0).unwrap();
-    let cert_serial_number: CertField<&[u8]> = get_field(&cert, cbor_cert_type.offset).unwrap();
-    let issuer: CertField<&[u8]> = get_field(&cert, cert_serial_number.offset).unwrap();
-    let validity_not_before: CertField<i128> = get_field(&cert, issuer.offset).unwrap();
-    let validity_not_after: CertField<i128> = get_field(&cert, validity_not_before.offset).unwrap();
-    let subject: CertField<&[u8]> = get_field(&cert, validity_not_after.offset).unwrap();
-    let subject_pk_alg: CertField<i16> = get_field(&cert, subject.offset).unwrap();
-    let subject_pk: CertField<&[u8]> = get_field(&cert, subject_pk_alg.offset).unwrap();
-    let extensions: CertField<i16> = get_field(&cert, subject_pk.offset).unwrap();
-    let issuer_sgn_alg: CertField<i16> = get_field(&cert, extensions.offset).unwrap();
-    let signature: CertField<&[u8]> = get_field(&cert, issuer_sgn_alg.offset).unwrap();
+    let cbor_cert_type: Field<u8> = get_field(&cert, 0).unwrap();
+    let cert_serial_number: Field<&[u8]> = get_field(&cert, cbor_cert_type.offset).unwrap();
+    let issuer: Field<&[u8]> = get_field(&cert, cert_serial_number.offset).unwrap();
+    let validity_not_before: Field<i64> = get_field(&cert, issuer.offset).unwrap();
+    let validity_not_after: Field<i64> = get_field(&cert, validity_not_before.offset).unwrap();
+    let subject: Field<&[u8]> = get_field(&cert, validity_not_after.offset).unwrap();
+    let subject_pk_alg: Field<i16> = get_field(&cert, subject.offset).unwrap();
+    let subject_pk: Field<&[u8]> = get_field(&cert, subject_pk_alg.offset).unwrap();
+    let extensions: Field<i16> = get_field(&cert, subject_pk.offset).unwrap();
+    let issuer_sgn_alg: Field<i16> = get_field(&cert, extensions.offset).unwrap();
+    let signature: Field<&[u8]> = get_field(&cert, issuer_sgn_alg.offset).unwrap();
 
     //here we get the signed data
     let signed_data = cert[..issuer_sgn_alg.offset].to_vec();
 
-    
-
     println!("-----------------------------------------------------");
-    println!("cbor_cert_type is: {:?}", cbor_cert_type.cert_field);
-    println!(
-        "cert_serial_number is: {:02x?}",
-        cert_serial_number.cert_field
-    );
-    println!("issuer is: {:?}", issuer.cert_field);
-    println!(
-        "validity_not_before is: {:?}",
-        validity_not_before.cert_field
-    );
-    println!("validity_not_after is: {:?}", validity_not_after.cert_field);
-    println!("subject is: {:02x?}", subject.cert_field);
-    println!("subject_pk_alg is: {:}", subject_pk_alg.cert_field);
-    println!("subject_pk is: {:02x?}", subject_pk.cert_field);
-    println!("extensions is: {:}", extensions.cert_field);
-    println!("issuer_sgn_alg is: {:}", issuer_sgn_alg.cert_field);
+    println!("cbor_cert_type is: {:?}", cbor_cert_type.field);
+    println!("cert_serial_number is: {:02x?}", cert_serial_number.field);
+    println!("issuer is: {:?}", issuer.field);
+    println!("validity_not_before is: {:?}", validity_not_before.field);
+    println!("validity_not_after is: {:?}", validity_not_after.field);
+    println!("subject is: {:02x?}", subject.field);
+    println!("subject_pk_alg is: {:}", subject_pk_alg.field);
+    println!("subject_pk is: {:02x?}", subject_pk.field);
+    println!("extensions is: {:}", extensions.field);
+    println!("issuer_sgn_alg is: {:}", issuer_sgn_alg.field);
     println!("signed_data is: {:02x?}", signed_data);
-    println!("signature is: {:02x?}", signature.cert_field);
+    println!("signature is: {:02x?}", signature.field);
     println!("-----------------------------------------------------");
 
     let decoded_data = TBSCertificate {
-        cbor_cert_type: cbor_cert_type.cert_field,
-        cert_serial_number: cert_serial_number.cert_field.to_vec(),
-        issuer: issuer.cert_field.to_vec(),
-        validity_not_before: validity_not_before.cert_field,
-        validity_not_after: validity_not_after.cert_field,
-        subject: subject.cert_field.to_vec(),
-        subject_pk_alg: subject_pk_alg.cert_field,
-        subject_pk: subject_pk.cert_field.to_vec(),
-        extensions: extensions.cert_field,
-        issuer_sgn_alg: issuer_sgn_alg.cert_field,
+        cbor_cert_type: cbor_cert_type.field,
+        cert_serial_number: cert_serial_number.field.to_vec(),
+        issuer: issuer.field.to_vec(),
+        validity_not_before: validity_not_before.field,
+        validity_not_after: validity_not_after.field,
+        subject: subject.field.to_vec(),
+        subject_pk_alg: subject_pk_alg.field,
+        subject_pk: subject_pk.field.to_vec(),
+        extensions: extensions.field,
+        issuer_sgn_alg: issuer_sgn_alg.field,
     };
 
     Ok(CBORCertificate {
         signed_data,
         decoded_data,
-        signature: signature.cert_field.to_vec(),
+        signature: signature.field.to_vec(),
     })
 }
 

@@ -1,6 +1,7 @@
+use crate::cert::OutCert;
 use crate::csr::OutCSR;
 use crate::error::CborCertError;
-use crate::keygen::OutEd25519Data;
+use crate::keygen::OutKeyPair;
 use itertools::Itertools;
 use std::fs;
 
@@ -9,15 +10,17 @@ pub trait Saving {
 }
 
 pub enum Out<'a> {
-    OutEd25519(OutEd25519Data<'a>),
+    OutKeyPair(OutKeyPair<'a>),
     OutCSR(OutCSR<'a>),
+    OutCert(OutCert<'a>),
 }
 
 impl Saving for Out<'_> {
     fn save(&self) -> Result<(), CborCertError> {
         match self {
-            Out::OutEd25519(ed25519_data) => ed25519_data.save(),
+            Out::OutKeyPair(ed25519_data) => ed25519_data.save(),
             Out::OutCSR(csr_data) => csr_data.save(),
+            Out::OutCert(cert_data) => cert_data.save(),
         }
     }
 }
@@ -43,8 +46,11 @@ const ED25519_META: &str = "
 const CSR_META: &str = "
     It contains a Certificate Signing Request (CSR).
 */\n\n";
+const CERT_META: &str = "
+    It contains a Certificate.
+*/\n\n";
 
-impl Saving for OutEd25519Data<'_> {
+impl Saving for OutKeyPair<'_> {
     fn save(&self) -> Result<(), CborCertError> {
         for file in self.out_files {
             match &file.format {
@@ -55,8 +61,8 @@ impl Saving for OutEd25519Data<'_> {
                             "{}{}const char sk []= {{ {:#04x} }};\n\nconst char pk []=  {{ {:#04x} }};\n\nconst unsigned int sk_len = sizeof(sk);\n\nconst unsigned int pk_len = sizeof(pk);",
                             C_HEADER,
                             ED25519_META,
-                            self.sk.iter().format(", "),
-                            self.pk.iter().format(", ")
+                            self.key_pair.sk.iter().format(", "),
+                            self.key_pair.pk.iter().format(", ")
                         ),
                     )?;
                 }
@@ -65,8 +71,8 @@ impl Saving for OutEd25519Data<'_> {
                 }
                 FileFormat::DER => {
                     println!("file.name {}:", file.name);
-                    fs::write(format!("{}_sk_ed25519.der", file.name), self.sk)?;
-                    fs::write(format!("{}_pk_ed25519.der", file.name), self.pk)?;
+                    fs::write(format!("{}_sk_ed25519.der", file.name), &self.key_pair.sk)?;
+                    fs::write(format!("{}_pk_ed25519.der", file.name), &self.key_pair.pk)?;
                 }
             }
         }
@@ -95,6 +101,34 @@ impl Saving for OutCSR<'_> {
                 FileFormat::DER => {
                     println!("file.name {}:", file.name);
                     fs::write(format!("{}.der", file.name), &self.csr)?;
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+impl Saving for OutCert<'_> {
+    fn save(&self) -> Result<(), CborCertError> {
+        for file in self.out_files {
+            match &file.format {
+                FileFormat::C => {
+                    fs::write(
+                        file.full_name.to_string(),
+                        format!(
+                            "{}{}const char cert []= {{ {:#04x} }};\n\nconst unsigned int cert_len = sizeof(cert);",
+                            C_HEADER,
+                            CERT_META,
+                            self.cert.iter().format(", "),
+                        ),
+                    )?;
+                }
+                FileFormat::TOML => {
+                    return Err(CborCertError::CSRCannotBeSavedInTomlFile);
+                }
+                FileFormat::DER => {
+                    println!("file.name {}:", file.name);
+                    fs::write(file.full_name.to_string(), &self.cert)?;
                 }
             }
         }
