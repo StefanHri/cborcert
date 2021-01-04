@@ -1,5 +1,5 @@
 use crate::algorithm::Algorithm;
-use crate::cert::CertGenConf;
+use crate::cert::{CertGenConf, CertVerConf};
 use crate::csr::CSRGenConf;
 use crate::error::CborCertError;
 use crate::execution::Config;
@@ -12,6 +12,7 @@ pub enum Command {
     KeyGen,
     CSRGen,
     CertGen,
+    CertVer,
 }
 
 impl Config {
@@ -42,6 +43,14 @@ impl Config {
                     ca_pk: Config::get_der_file_content(&args[2])?,
                     ca_sk: Config::get_der_file_content(&args[3])?,
                     out_files: Config::get_out_files(&args[4..])?,
+                }))
+            }
+            Command::CertVer => {
+                Config::num_arguments_check(&args, 3, 3)?;
+                Ok(Config::CertVer(CertVerConf {
+                    cert: Config::get_der_file_content(&args[0])?,
+                    ca_pk: Config::get_der_file_content(&args[1])?,
+                    out_files: Config::get_out_files(&args[2..])?,
                 }))
             }
         }
@@ -76,16 +85,17 @@ impl Config {
         let metadata = std::fs::metadata(&f[0].full_name)?;
         let mut buffer = vec![0; metadata.len() as usize];
         fh.read(&mut buffer)?;
-        println!("{} content is: {:x?}", f[0].full_name, buffer);
+        //println!("{} content is: {:x?}", f[0].full_name, buffer);
         Ok(buffer)
     }
 
     /// Gets a vector of files (type File) from a slice of strings
     fn get_out_files(in_vec: &[&str]) -> Result<Vec<File>, CborCertError> {
-        Config::get_files(in_vec, &[FileFormat::C, FileFormat::DER])
+        Config::get_files(in_vec, &[FileFormat::C, FileFormat::DER, FileFormat::TOML])
     }
 
     ///coverts a slice of strings to a vector of File
+    //todo remove formats argument
     fn get_files(in_vec: &[&str], formats: &[FileFormat]) -> Result<Vec<File>, CborCertError> {
         let mut out_files = Vec::new();
         for file in in_vec {
@@ -167,6 +177,7 @@ mod tests {
             }
             Config::CSRGen(_x) => assert!(false),
             Config::CertGen(_x) => assert!(false),
+            Config::CertVer(_x) => assert!(false),
         };
     }
 }

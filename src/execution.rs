@@ -1,4 +1,4 @@
-use crate::cert::CertGenConf;
+use crate::cert::{CertGenConf, CertVerConf};
 use crate::csr::CSRGenConf;
 use crate::error::CborCertError;
 use crate::keygen::{KeyGenConf, OutKeyPair};
@@ -14,6 +14,7 @@ pub enum Config {
     KeyGen(KeyGenConf),
     CSRGen(CSRGenConf),
     CertGen(CertGenConf),
+    CertVer(CertVerConf),
 }
 
 impl Execution for Config {
@@ -22,6 +23,7 @@ impl Execution for Config {
             Config::KeyGen(key_gen_conf) => key_gen_conf.execute(),
             Config::CSRGen(csr_gen_conf) => csr_gen_conf.execute(),
             Config::CertGen(cert_gen_conf) => cert_gen_conf.execute(),
+            Config::CertVer(cert_ver_conf) => cert_ver_conf.execute(),
         }
     }
 }
@@ -50,5 +52,11 @@ impl Execution for CSRGenConf {
 impl Execution for CertGenConf {
     fn execute(&self) -> Result<Out, CborCertError> {
         self.cert_gen()
+    }
+}
+
+impl Execution for CertVerConf {
+    fn execute(&self) -> Result<Out, CborCertError> {
+        self.cert_ver()
     }
 }

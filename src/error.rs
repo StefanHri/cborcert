@@ -19,6 +19,8 @@ pub enum CborCertError {
     CSRCannotBeSavedInTomlFile,
     NotASignatureAlgorithm,
     NoIanaVal,
+    VerCannotBeSavedInCFile,
+    VerCannotBeSavedInDerFile,
 }
 
 impl fmt::Display for CborCertError {
@@ -46,6 +48,18 @@ impl fmt::Display for CborCertError {
             }
             CborCertError::NoIanaVal => {
                 write!(f, "No IANA value.")
+            }
+            CborCertError::VerCannotBeSavedInCFile => {
+                write!(
+                    f,
+                    "The decoded CBOR certificate content cannot be saved in .c file."
+                )
+            }
+            CborCertError::VerCannotBeSavedInDerFile => {
+                write!(
+                    f,
+                    "The decoded CBOR certificate content cannot be saved in .der file."
+                )
             }
         }
     }

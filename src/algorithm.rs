@@ -28,7 +28,7 @@ use ring::signature::{self};
 // |     9 | id-alg-xmss                           |
 // |    10 | id-alg-xmssmt                         |
 // +-------+---------------------------------------+
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum PkIanaVal {
     IdecPublicKeySecp256r1 = 1,
     IdEd25519 = 6,
@@ -65,12 +65,13 @@ pub enum PkIanaVal {
 // |   254 | id-ecdsa-with-sha3-384                |
 // |   255 | id-ecdsa-with-sha3-512                |
 // +-------+---------------------------------------+
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum SgnIanaVal {
     EcdsaWithSHA256 = 6,
     IdEd25519 = 11,
 }
 
+#[derive(Debug)]
 pub struct Algorithm {
     pub name_pk: Option<String>,
     pub iana_pk: Option<PkIanaVal>,
@@ -85,6 +86,7 @@ pub struct KeyPair {
 
 impl Algorithm {
     pub fn new(in_str: &str) -> Result<Algorithm, CborCertError> {
+        println!("in_str: {}", in_str);
         match in_str {
             "id-Ed25519" => Ok(Algorithm {
                 name_pk: Some(in_str.to_string()),
@@ -102,10 +104,32 @@ impl Algorithm {
         }
     }
 
-    pub fn new_sgn_alg_from_num(x: u8) -> Result<Algorithm, CborCertError> {
+    pub fn new_sgn_alg_from_pk_num(iana_pk_num: u8) -> Result<Algorithm, CborCertError> {
+        const ED25519: u8 = PkIanaVal::IdEd25519 as u8;
+        const ECDSA_SHA256: u8 = PkIanaVal::IdecPublicKeySecp256r1 as u8;
+        println!("iana_pk_num: {}", iana_pk_num);
+        match iana_pk_num {
+            ED25519 => Ok(Algorithm {
+                name_pk: Some(String::from("id-Ed25519")),
+                iana_pk: Some(PkIanaVal::IdEd25519),
+                name_sgn: Some(String::from("id-Ed25519")),
+                iana_sgn: Some(SgnIanaVal::IdEd25519),
+            }),
+            ECDSA_SHA256 => Ok(Algorithm {
+                name_pk: Some(String::from("id-ecPublicKey + secp256r1")),
+                iana_pk: Some(PkIanaVal::IdecPublicKeySecp256r1),
+                name_sgn: Some(String::from("ecdsa-with-SHA256")),
+                iana_sgn: Some(SgnIanaVal::EcdsaWithSHA256),
+            }),
+            _ => return Err(CborCertError::UnsupportedAlgorithm),
+        }
+    }
+    //todo merge this and the above function
+    pub fn new_sgn_alg_from_sgn_num(iana_sgn_num: u8) -> Result<Algorithm, CborCertError> {
         const ED25519: u8 = SgnIanaVal::IdEd25519 as u8;
         const ECDSA_SHA256: u8 = SgnIanaVal::EcdsaWithSHA256 as u8;
-        match x {
+        println!("iana_sgn_num: {}", iana_sgn_num);
+        match iana_sgn_num {
             ED25519 => Ok(Algorithm {
                 name_pk: Some(String::from("id-Ed25519")),
                 iana_pk: Some(PkIanaVal::IdEd25519),
@@ -131,7 +155,11 @@ impl Algorithm {
 
     pub fn iana_pk_as_u8(&self) -> Result<u8, CborCertError> {
         match self.iana_pk {
-            Some(x) => Ok(x as u8),
+            Some(x) => {
+                println!("{:?}", self);
+                println!("iana pk value is {}", x as u8);
+                Ok(x as u8)
+            }
             None => return Err(CborCertError::NoIanaVal),
         }
     }
@@ -181,9 +209,9 @@ impl Algorithm {
 }
 
 pub fn ecdsa_sha256_verify(
-    signed_data: &[u8],
-    signature: &[u8],
-    pk: &[u8],
+    _signed_data: &[u8],
+    _signature: &[u8],
+    _pk: &[u8],
 ) -> Result<(), CborCertError> {
     //todo implement this
     Ok(())
@@ -205,8 +233,6 @@ fn ed25519_key_gen() -> Result<KeyPair, CborCertError> {
     let keypair: Keypair = Keypair::generate(&mut csprng);
     let sk = keypair.secret.to_bytes();
     let pk = keypair.public.to_bytes();
-    println!("Secret key: {:X?}", sk);
-    println!("Public key: {:X?}", pk);
     Ok(KeyPair {
         sk: sk.to_vec(),
         pk: pk.to_vec(),
@@ -261,13 +287,13 @@ fn ed25519_sign(pk: &[u8], sk: &[u8], data: &[u8]) -> Result<Vec<u8>, CborCertEr
         public: PublicKey::from_bytes(&pk)?,
     };
     let signature = keypair.sign(&data).to_bytes();
-    println!("signature: {:x?}", signature);
+    //println!("signature: {:x?}", signature);
     Ok(signature.to_vec())
 }
 
-fn ecdsa_sha256_sign(pk: &[u8], sk: &[u8], data: &[u8]) -> Result<Vec<u8>, CborCertError> {
+fn ecdsa_sha256_sign(_pk: &[u8], _sk: &[u8], _data: &[u8]) -> Result<Vec<u8>, CborCertError> {
     //todo implement this
     let signature = vec![1, 2, 3];
-    println!("signature: {:x?}", signature);
+    //println!("signature: {:x?}", signature);
     Ok(signature)
 }

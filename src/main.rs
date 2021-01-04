@@ -64,7 +64,7 @@ fn main() {
             * csr.der -- contains the CSR \t
             * ca_pk.der -- contains the public key of the CA \t
             * ca_sk.der -- contains the secret key of the CA  \t 
-            * csr.c and csr.der -- are output files where the certificate will be saved.")   
+            * cert.c and cert.der -- are output files where the certificate will be saved.")   
         )   
         .arg(Arg::with_name("CERTVER")
         .short("v")
@@ -118,6 +118,22 @@ fn main() {
     if let Some(args) = matches.values_of("CERTGEN"){
         let config = Config::new(
             Command::CertGen, args.collect())
+            .unwrap_or_else(|err| {
+            eprintln!("Problem parsing arguments: {}", err);
+            process::exit(1);
+        }); 
+        config.execute().unwrap_or_else(|err| {
+            eprintln!("Problem during executing the command: {}", err);
+            process::exit(1);
+        }).save().unwrap_or_else(|err| {
+            eprintln!("Problem during saving the results: {}", err);
+            process::exit(1);
+        });
+    }
+
+    if let Some(args) = matches.values_of("CERTVER"){
+        let config = Config::new(
+            Command::CertVer, args.collect())
             .unwrap_or_else(|err| {
             eprintln!("Problem parsing arguments: {}", err);
             process::exit(1);

@@ -31,6 +31,13 @@ pub struct OutCSR<'a> {
 }
 
 impl CSRGenConf {
+    /// Generates a CSR
+    /// The CSR contains:
+    /// * cbor_cert_type
+    /// * subject_common_name
+    /// * iana public key value indicating the public key algorithm
+    /// * public key
+    /// * signature over the above fields
     pub fn csr_gen(&self) -> Result<Out, CborCertError> {
         let mut encoded_signed_data = to_vec(&self.csr_meta_data.cbor_cert_type)?;
         encoded_signed_data.extend(
@@ -40,10 +47,10 @@ impl CSRGenConf {
         );
         let alg = Algorithm::new(&self.csr_meta_data.subject_pk_alg)?;
 
-        encoded_signed_data.extend(to_vec(&alg.name_pk)?.iter().cloned());
+        encoded_signed_data.extend(to_vec(&alg.iana_pk_as_u8()?)?.iter().cloned());
         encoded_signed_data.extend(to_vec(&Bytes::new(&self.pk))?.iter().cloned());
 
-        println!("encoded_signed_data: {:x?}", encoded_signed_data);
+        //println!("encoded_signed_data: {:x?}", encoded_signed_data);
 
         let signature = alg.sign(&self.pk, &self.sk, &encoded_signed_data)?;
         let mut csr = encoded_signed_data;
