@@ -1,6 +1,6 @@
-use crate::algorithm::{Algorithm, PkIanaVal, SgnIanaVal};
-use crate::cert::{CAconf, CertGenConf};
-use crate::csr::{CSRGenConf, CSRMetaData};
+use crate::algorithm::Algorithm;
+use crate::cert::CertGenConf;
+use crate::csr::CSRGenConf;
 use crate::error::CborCertError;
 use crate::execution::Config;
 use crate::keygen::KeyGenConf;
@@ -132,6 +132,7 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::algorithm::{PkIanaVal, SgnIanaVal};
 
     #[test]
     fn num_arguments_check_test() {
@@ -151,6 +152,7 @@ mod tests {
     }
 
     #[test]
+
     fn ed25519_key_gen() {
         let in_params = vec!["ed25519", "ca.c"];
         let config = Config::new(Command::KeyGen, in_params).unwrap();

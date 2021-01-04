@@ -29,6 +29,12 @@ impl Execution for Config {
 impl Execution for KeyGenConf {
     fn execute(&self) -> Result<Out, CborCertError> {
         Ok(Out::OutKeyPair(OutKeyPair {
+            alg_pk_name: self
+                .algorithm
+                .name_pk_as_string()?
+                .replace("-", "_")
+                .replace(" ", "")
+                .replace("+", "_"),
             key_pair: self.algorithm.key_gen()?,
             out_files: &self.out_files,
         }))

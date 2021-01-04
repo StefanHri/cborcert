@@ -30,7 +30,12 @@ fn main() {
             .long("sgn-key-gen")
             .takes_value(true)
             .multiple(true)
-            .help("Generates a random asymmetric keypair. Example: cborcert -k ed25519 ca/ca.c ca/ca.der. ed25519 is the used algorithm. ca.c and ca.der are files where the key is saved.")   
+            .help("Generates a random asymmetric keypair. Example: cborcert -k \"id-Ed25519\" ca/ca.c ca/ca.der. \t
+            id-Ed25519 is the algorithm. \t
+            ca.c and ca.der are output files. \n
+            Supported algorithms are:\t
+            \"id-ecPublicKey + secp256r1\"\t
+            \"id-Ed25519\"")   
         )
         .arg(Arg::with_name("CSRGEN")
             .short("c")

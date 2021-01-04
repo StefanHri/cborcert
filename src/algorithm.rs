@@ -3,6 +3,16 @@ use ed25519_dalek::{Keypair, PublicKey, SecretKey, Signature, Signer, Verifier};
 use rand::rngs::OsRng;
 use std::convert::TryFrom;
 
+use pkcs8::PrivateKeyInfo;
+use ring::rand as rrand;
+use ring::signature::KeyPair as rKeyPair;
+use ring::signature::{self};
+// use ring::{
+//     rand,
+//     signature::{self, KeyPair},
+//     test, test_file,
+// };
+
 // +-------+---------------------------------------+
 // | Value | X.509 Public Key Algorithm            |
 // +=======+=======================================+
@@ -93,16 +103,16 @@ impl Algorithm {
     }
 
     pub fn new_sgn_alg_from_num(x: u8) -> Result<Algorithm, CborCertError> {
-        const ed25519: u8 = SgnIanaVal::IdEd25519 as u8;
-        const ecdsa_sha256: u8 = SgnIanaVal::EcdsaWithSHA256 as u8;
+        const ED25519: u8 = SgnIanaVal::IdEd25519 as u8;
+        const ECDSA_SHA256: u8 = SgnIanaVal::EcdsaWithSHA256 as u8;
         match x {
-            ed25519 => Ok(Algorithm {
+            ED25519 => Ok(Algorithm {
                 name_pk: Some(String::from("id-Ed25519")),
                 iana_pk: Some(PkIanaVal::IdEd25519),
                 name_sgn: Some(String::from("id-Ed25519")),
                 iana_sgn: Some(SgnIanaVal::IdEd25519),
             }),
-            ecdsa_sha256 => Ok(Algorithm {
+            ECDSA_SHA256 => Ok(Algorithm {
                 name_pk: Some(String::from("id-ecPublicKey + secp256r1")),
                 iana_pk: Some(PkIanaVal::IdecPublicKeySecp256r1),
                 name_sgn: Some(String::from("ecdsa-with-SHA256")),
@@ -165,8 +175,7 @@ impl Algorithm {
                 SgnIanaVal::IdEd25519 => ed25519_key_gen(),
                 SgnIanaVal::EcdsaWithSHA256 => ecdsa_sha256_key_gen(),
             },
-                None => Err(CborCertError::NotASignatureAlgorithm),
-
+            None => Err(CborCertError::NotASignatureAlgorithm),
         }
     }
 }
@@ -206,13 +215,43 @@ fn ed25519_key_gen() -> Result<KeyPair, CborCertError> {
 
 fn ecdsa_sha256_key_gen() -> Result<KeyPair, CborCertError> {
     //todo implement this
-    let sk = vec![1, 2, 3];
-    let pk = vec![1, 2, 3];
-    println!("Secret key: {:X?}", sk);
-    println!("Public key: {:X?}", pk);
+    let rng = rrand::SystemRandom::new();
+
+    let pkcs8 =
+        signature::EcdsaKeyPair::generate_pkcs8(&signature::ECDSA_P256_SHA256_FIXED_SIGNING, &rng)
+            .unwrap();
+
+    println!();
+    println!("pkcs8: ");
+    for b in pkcs8.as_ref() {
+        print!("{:02x}", *b);
+    }
+
+    let sk = PrivateKeyInfo::from_der(pkcs8.as_ref()).unwrap();
+    println!("sk: {:02x?}", sk.private_key);
+    println!("sk_all: {:?}", sk);
+
+    //#[cfg(feature = "alloc")]
+    let key_pair = signature::EcdsaKeyPair::from_pkcs8(
+        &signature::ECDSA_P256_SHA256_FIXED_SIGNING,
+        pkcs8.as_ref(),
+    )
+    .unwrap();
+    println!();
+    println!("pk: ");
+    for b in key_pair.public_key().as_ref() {
+        print!("{:02x}", *b);
+    }
+
+    println!();
+
+    //let sk = vec![1, 2, 3];
+    //let pk = vec![1, 2, 3];
+    //println!("Secret key: {:X?}", sk);
+    //println!("Public key: {:X?}", pk);
     Ok(KeyPair {
-        sk: sk.to_vec(),
-        pk: pk.to_vec(),
+        sk: sk.private_key[..32].to_vec(),
+        pk: key_pair.public_key().as_ref().to_vec(),
     })
 }
 

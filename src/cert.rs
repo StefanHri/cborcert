@@ -1,4 +1,4 @@
-use crate::algorithm::{Algorithm, SgnIanaVal};
+use crate::algorithm::Algorithm;
 use crate::csr::{CSRMetaData, CSRSignedData};
 use crate::error::CborCertError;
 use crate::saving::File;
@@ -109,21 +109,21 @@ impl CertGenConf {
         }))
     }
 
-    fn csr_verify(csr: Vec<u8>) -> Result<CSRMetaData, CborCertError> {
-        let cbor_cert_type: Field<u8> = get_field(&csr, 0)?;
-        let subject_cn: Field<&[u8]> = get_field(&csr, cbor_cert_type.offset)?;
-        let subject_pk_alg: Field<u8> = get_field(&csr, subject_cn.offset)?;
-        let pk: Field<&[u8]> = get_field(&csr, subject_pk_alg.offset)?;
-        let signature: Field<&[u8]> = get_field(&csr, pk.offset)?;
-        let signed_data = csr[..pk.offset].to_vec();
-        let alg = Algorithm::new_sgn_alg_from_num(subject_pk_alg.field)?;
-        alg.verify(&signed_data, signature.field, pk.field)?;
-        Ok(CSRMetaData {
-            cbor_cert_type: cbor_cert_type.field,
-            subject_common_name: subject_cn.field.to_vec(),
-            subject_pk_alg: alg.name_pk_as_string()?,
-        })
-    }
+    // fn csr_verify(csr: Vec<u8>) -> Result<CSRMetaData, CborCertError> {
+    //     let cbor_cert_type: Field<u8> = get_field(&csr, 0)?;
+    //     let subject_cn: Field<&[u8]> = get_field(&csr, cbor_cert_type.offset)?;
+    //     let subject_pk_alg: Field<u8> = get_field(&csr, subject_cn.offset)?;
+    //     let pk: Field<&[u8]> = get_field(&csr, subject_pk_alg.offset)?;
+    //     let signature: Field<&[u8]> = get_field(&csr, pk.offset)?;
+    //     let signed_data = csr[..pk.offset].to_vec();
+    //     let alg = Algorithm::new_sgn_alg_from_num(subject_pk_alg.field)?;
+    //     alg.verify(&signed_data, signature.field, pk.field)?;
+    //     Ok(CSRMetaData {
+    //         cbor_cert_type: cbor_cert_type.field,
+    //         subject_common_name: subject_cn.field.to_vec(),
+    //         subject_pk_alg: alg.name_pk_as_string()?,
+    //     })
+    // }
 }
 
 fn get_field<'a, T>(cert: &'a [u8], offset: usize) -> Result<Field<T>, CborCertError>
@@ -165,18 +165,18 @@ fn csr_verify(csr: &[u8]) -> Result<CSRSignedData, CborCertError> {
     })
 }
 
-fn decode_native(cert: Vec<u8>) -> Result<CBORCertificate, &'static str> {
-    let cbor_cert_type: Field<u8> = get_field(&cert, 0).unwrap();
-    let cert_serial_number: Field<&[u8]> = get_field(&cert, cbor_cert_type.offset).unwrap();
-    let issuer: Field<&[u8]> = get_field(&cert, cert_serial_number.offset).unwrap();
-    let validity_not_before: Field<i64> = get_field(&cert, issuer.offset).unwrap();
-    let validity_not_after: Field<i64> = get_field(&cert, validity_not_before.offset).unwrap();
-    let subject: Field<&[u8]> = get_field(&cert, validity_not_after.offset).unwrap();
-    let subject_pk_alg: Field<i16> = get_field(&cert, subject.offset).unwrap();
-    let subject_pk: Field<&[u8]> = get_field(&cert, subject_pk_alg.offset).unwrap();
-    let extensions: Field<i16> = get_field(&cert, subject_pk.offset).unwrap();
-    let issuer_sgn_alg: Field<i16> = get_field(&cert, extensions.offset).unwrap();
-    let signature: Field<&[u8]> = get_field(&cert, issuer_sgn_alg.offset).unwrap();
+fn decode_native(cert: Vec<u8>) -> Result<CBORCertificate, CborCertError> {
+    let cbor_cert_type: Field<u8> = get_field(&cert, 0)?;
+    let cert_serial_number: Field<&[u8]> = get_field(&cert, cbor_cert_type.offset)?;
+    let issuer: Field<&[u8]> = get_field(&cert, cert_serial_number.offset)?;
+    let validity_not_before: Field<i64> = get_field(&cert, issuer.offset)?;
+    let validity_not_after: Field<i64> = get_field(&cert, validity_not_before.offset)?;
+    let subject: Field<&[u8]> = get_field(&cert, validity_not_after.offset)?;
+    let subject_pk_alg: Field<i16> = get_field(&cert, subject.offset)?;
+    let subject_pk: Field<&[u8]> = get_field(&cert, subject_pk_alg.offset)?;
+    let extensions: Field<i16> = get_field(&cert, subject_pk.offset)?;
+    let issuer_sgn_alg: Field<i16> = get_field(&cert, extensions.offset)?;
+    let signature: Field<&[u8]> = get_field(&cert, issuer_sgn_alg.offset)?;
 
     //here we get the signed data
     let signed_data = cert[..issuer_sgn_alg.offset].to_vec();
