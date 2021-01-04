@@ -27,7 +27,7 @@ cd tests
 * In the ca0 folder create .toml configuration file with the following content:
     ```toml
     certificate_serial_number = [1, 245, 13]
-    issuer = [82, 70, 67, 32, 116, 101, 115, 116, 32, 67, 65] #"RFC test CA"
+    issuer = "RFC test CA"
     validity_not_before = 1577836800
     validity_not_after = 1612224000 
     extensions = 1
@@ -50,7 +50,7 @@ cd tests
 
   ```toml
   certificate_serial_number = [1, 245, 13]
-  issuer = [82, 70, 67, 32, 116, 101, 115, 116, 32, 67, 65] #"RFC test CA"
+  issuer = "RFC test CA"
   validity_not_before = 1577836800
   validity_not_after = 1612224000 
   extensions = 1
@@ -116,7 +116,7 @@ This command will output the secret and private key in separate .der files and a
   cborcert -c tests/entity/csr_entity.toml tests/entity/entity_pk_id_Ed25519.der tests/entity/entity_sk_id_Ed25519.der tests/entity/entity_csr.c tests/entity/entity_csr.der
   ```
 
-* Create certificate for CA1
+* Create certificate for the entity
 
   ```bash
   cborcert -g tests/ca1/ca1.toml tests/entity/entity_csr.der tests/entity/entity_pk_id_Ed25519.der tests/entity/entity_sk_id_Ed25519.der tests/entity/entity_cert.c tests/entity/entity_cert.der
