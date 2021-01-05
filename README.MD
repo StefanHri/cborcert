@@ -119,7 +119,7 @@ This command will output the secret and private key in separate .der files and a
 * Create certificate for the entity
 
   ```bash
-  cborcert -g tests/ca1/ca1.toml tests/entity/entity_csr.der tests/entity/entity_pk_id_Ed25519.der tests/entity/entity_sk_id_Ed25519.der tests/entity/entity_cert.c tests/entity/entity_cert.der
+  cborcert -g tests/ca1/ca1.toml tests/entity/entity_csr.der tests/ca1/ca1_pk_id_Ed25519.der tests/ca1/ca1_sk_id_Ed25519.der tests/entity/entity_cert.c tests/entity/entity_cert.der
   ```
 
 * Parse and verify the certificate (optional just as test)

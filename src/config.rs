@@ -164,7 +164,7 @@ mod tests {
     #[test]
 
     fn ed25519_key_gen() {
-        let in_params = vec!["ed25519", "ca.c"];
+        let in_params = vec!["id-Ed25519", "ca.c"];
         let config = Config::new(Command::KeyGen, in_params).unwrap();
         let _name: String = String::from("id-Ed25519");
 

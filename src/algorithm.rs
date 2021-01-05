@@ -7,11 +7,6 @@ use pkcs8::PrivateKeyInfo;
 use ring::rand as rrand;
 use ring::signature::KeyPair as rKeyPair;
 use ring::signature::{self};
-// use ring::{
-//     rand,
-//     signature::{self, KeyPair},
-//     test, test_file,
-// };
 
 // +-------+---------------------------------------+
 // | Value | X.509 Public Key Algorithm            |
@@ -28,7 +23,7 @@ use ring::signature::{self};
 // |     9 | id-alg-xmss                           |
 // |    10 | id-alg-xmssmt                         |
 // +-------+---------------------------------------+
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum PkIanaVal {
     IdecPublicKeySecp256r1 = 1,
     IdEd25519 = 6,
@@ -65,13 +60,13 @@ pub enum PkIanaVal {
 // |   254 | id-ecdsa-with-sha3-384                |
 // |   255 | id-ecdsa-with-sha3-512                |
 // +-------+---------------------------------------+
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum SgnIanaVal {
     EcdsaWithSHA256 = 6,
     IdEd25519 = 11,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Algorithm {
     pub name_pk: Option<String>,
     pub iana_pk: Option<PkIanaVal>,
@@ -85,67 +80,59 @@ pub struct KeyPair {
 }
 
 impl Algorithm {
+    /// Generates new ed25519 algorithm
+    fn alg_ed25519() -> Result<Algorithm, CborCertError> {
+        Ok(Algorithm {
+            name_pk: Some(String::from("id-Ed25519")),
+            iana_pk: Some(PkIanaVal::IdEd25519),
+            name_sgn: Some(String::from("id-Ed25519")),
+            iana_sgn: Some(SgnIanaVal::IdEd25519),
+        })
+    }
+
+    /// Generates new ecdsa_sha256 algorithm
+    fn alg_ecdsa_sha256() -> Result<Algorithm, CborCertError> {
+        Ok(Algorithm {
+            name_pk: Some(String::from("id-ecPublicKey + secp256r1")),
+            iana_pk: Some(PkIanaVal::IdecPublicKeySecp256r1),
+            name_sgn: Some(String::from("ecdsa-with-SHA256")),
+            iana_sgn: Some(SgnIanaVal::EcdsaWithSHA256),
+        })
+    }
+
+    /// Generates new algorithm from a string
     pub fn new(in_str: &str) -> Result<Algorithm, CborCertError> {
         println!("in_str: {}", in_str);
         match in_str {
-            "id-Ed25519" => Ok(Algorithm {
-                name_pk: Some(in_str.to_string()),
-                iana_pk: Some(PkIanaVal::IdEd25519),
-                name_sgn: Some(in_str.to_string()),
-                iana_sgn: Some(SgnIanaVal::IdEd25519),
-            }),
-            "id-ecPublicKey + secp256r1" | "ecdsa-with-SHA256" => Ok(Algorithm {
-                name_pk: Some(in_str.to_string()),
-                iana_pk: Some(PkIanaVal::IdecPublicKeySecp256r1),
-                name_sgn: Some(in_str.to_string()),
-                iana_sgn: Some(SgnIanaVal::EcdsaWithSHA256),
-            }),
+            "id-Ed25519" => Algorithm::alg_ed25519(),
+            "id-ecPublicKey + secp256r1" | "ecdsa-with-SHA256" => Algorithm::alg_ecdsa_sha256(),
             _ => return Err(CborCertError::UnsupportedAlgorithm),
         }
     }
 
+    /// Generates a new algorithm from the IANA public key algorithm value
     pub fn new_sgn_alg_from_pk_num(iana_pk_num: u8) -> Result<Algorithm, CborCertError> {
         const ED25519: u8 = PkIanaVal::IdEd25519 as u8;
         const ECDSA_SHA256: u8 = PkIanaVal::IdecPublicKeySecp256r1 as u8;
-        println!("iana_pk_num: {}", iana_pk_num);
         match iana_pk_num {
-            ED25519 => Ok(Algorithm {
-                name_pk: Some(String::from("id-Ed25519")),
-                iana_pk: Some(PkIanaVal::IdEd25519),
-                name_sgn: Some(String::from("id-Ed25519")),
-                iana_sgn: Some(SgnIanaVal::IdEd25519),
-            }),
-            ECDSA_SHA256 => Ok(Algorithm {
-                name_pk: Some(String::from("id-ecPublicKey + secp256r1")),
-                iana_pk: Some(PkIanaVal::IdecPublicKeySecp256r1),
-                name_sgn: Some(String::from("ecdsa-with-SHA256")),
-                iana_sgn: Some(SgnIanaVal::EcdsaWithSHA256),
-            }),
+            ED25519 => Algorithm::alg_ed25519(),
+            ECDSA_SHA256 => Algorithm::alg_ecdsa_sha256(),
             _ => return Err(CborCertError::UnsupportedAlgorithm),
         }
     }
     //todo merge this and the above function
+    /// Generates a new algorithm from the IANA signature algorithm value
     pub fn new_sgn_alg_from_sgn_num(iana_sgn_num: u8) -> Result<Algorithm, CborCertError> {
         const ED25519: u8 = SgnIanaVal::IdEd25519 as u8;
         const ECDSA_SHA256: u8 = SgnIanaVal::EcdsaWithSHA256 as u8;
-        println!("iana_sgn_num: {}", iana_sgn_num);
         match iana_sgn_num {
-            ED25519 => Ok(Algorithm {
-                name_pk: Some(String::from("id-Ed25519")),
-                iana_pk: Some(PkIanaVal::IdEd25519),
-                name_sgn: Some(String::from("id-Ed25519")),
-                iana_sgn: Some(SgnIanaVal::IdEd25519),
-            }),
-            ECDSA_SHA256 => Ok(Algorithm {
-                name_pk: Some(String::from("id-ecPublicKey + secp256r1")),
-                iana_pk: Some(PkIanaVal::IdecPublicKeySecp256r1),
-                name_sgn: Some(String::from("ecdsa-with-SHA256")),
-                iana_sgn: Some(SgnIanaVal::EcdsaWithSHA256),
-            }),
+            ED25519 => Algorithm::alg_ed25519(),
+            ECDSA_SHA256 => Algorithm::alg_ecdsa_sha256(),
             _ => return Err(CborCertError::UnsupportedAlgorithm),
         }
     }
 
+    /// Returns the IANA value of the signature algorithm
     pub fn iana_sgn_as_u8(&self) -> Result<u8, CborCertError> {
         match self.iana_sgn {
             Some(x) => Ok(x as u8),
@@ -153,17 +140,15 @@ impl Algorithm {
         }
     }
 
+    /// Returns the IANA value of the public key algorithm
     pub fn iana_pk_as_u8(&self) -> Result<u8, CborCertError> {
         match self.iana_pk {
-            Some(x) => {
-                println!("{:?}", self);
-                println!("iana pk value is {}", x as u8);
-                Ok(x as u8)
-            }
+            Some(x) => Ok(x as u8),
             None => return Err(CborCertError::NoIanaVal),
         }
     }
 
+    /// Returns the name of the public key algorithm as string
     pub fn name_pk_as_string(&self) -> Result<String, CborCertError> {
         match &self.name_pk {
             Some(x) => Ok(x.clone()),
@@ -171,6 +156,7 @@ impl Algorithm {
         }
     }
 
+    /// Sings Data
     pub fn sign(&self, pk: &[u8], sk: &[u8], data: &[u8]) -> Result<Vec<u8>, CborCertError> {
         match self.iana_sgn {
             Some(x) => match x {
@@ -182,6 +168,7 @@ impl Algorithm {
         }
     }
 
+    /// Verifies a Signature
     pub fn verify(
         &self,
         signed_data: &[u8],
@@ -197,6 +184,7 @@ impl Algorithm {
         }
     }
 
+    /// Generates a key pair
     pub fn key_gen(&self) -> Result<KeyPair, CborCertError> {
         match self.iana_sgn {
             Some(x) => match x {
@@ -208,26 +196,8 @@ impl Algorithm {
     }
 }
 
-pub fn ecdsa_sha256_verify(
-    _signed_data: &[u8],
-    _signature: &[u8],
-    _pk: &[u8],
-) -> Result<(), CborCertError> {
-    //todo implement this
-    Ok(())
-}
-
-pub fn ed25519_verify(
-    signed_data: &[u8],
-    signature: &[u8],
-    pk: &[u8],
-) -> Result<(), CborCertError> {
-    let sgn: Signature = Signature::try_from(&signature[..])?;
-    let public = PublicKey::from_bytes(&pk)?;
-    public.verify(&signed_data, &sgn)?;
-    Ok(())
-}
-
+//----------------------------- ed25519 ----------------------------------------
+/// Generates a random ed25519 key pair
 fn ed25519_key_gen() -> Result<KeyPair, CborCertError> {
     let mut csprng = OsRng {};
     let keypair: Keypair = Keypair::generate(&mut csprng);
@@ -239,6 +209,31 @@ fn ed25519_key_gen() -> Result<KeyPair, CborCertError> {
     })
 }
 
+/// Generates a ed25519 signature
+fn ed25519_sign(pk: &[u8], sk: &[u8], data: &[u8]) -> Result<Vec<u8>, CborCertError> {
+    let keypair = Keypair {
+        secret: SecretKey::from_bytes(&sk)?,
+        public: PublicKey::from_bytes(&pk)?,
+    };
+    let signature = keypair.sign(&data).to_bytes();
+    Ok(signature.to_vec())
+}
+
+/// Verifies a sd25519 signature
+pub fn ed25519_verify(
+    signed_data: &[u8],
+    signature: &[u8],
+    pk: &[u8],
+) -> Result<(), CborCertError> {
+    let sgn: Signature = Signature::try_from(&signature[..])?;
+    let public = PublicKey::from_bytes(&pk)?;
+    public.verify(&signed_data, &sgn)?;
+    Ok(())
+}
+
+//--------------------------ecdsa_sha256----------------------------------------
+
+/// generates a random ecdsa key pair
 fn ecdsa_sha256_key_gen() -> Result<KeyPair, CborCertError> {
     //todo implement this
     let rng = rrand::SystemRandom::new();
@@ -271,29 +266,78 @@ fn ecdsa_sha256_key_gen() -> Result<KeyPair, CborCertError> {
 
     println!();
 
-    //let sk = vec![1, 2, 3];
-    //let pk = vec![1, 2, 3];
-    //println!("Secret key: {:X?}", sk);
-    //println!("Public key: {:X?}", pk);
     Ok(KeyPair {
         sk: sk.private_key[..32].to_vec(),
         pk: key_pair.public_key().as_ref().to_vec(),
     })
 }
 
-fn ed25519_sign(pk: &[u8], sk: &[u8], data: &[u8]) -> Result<Vec<u8>, CborCertError> {
-    let keypair = Keypair {
-        secret: SecretKey::from_bytes(&sk)?,
-        public: PublicKey::from_bytes(&pk)?,
-    };
-    let signature = keypair.sign(&data).to_bytes();
-    //println!("signature: {:x?}", signature);
-    Ok(signature.to_vec())
-}
-
+/// Generates an ecdsa+sha256 signature
 fn ecdsa_sha256_sign(_pk: &[u8], _sk: &[u8], _data: &[u8]) -> Result<Vec<u8>, CborCertError> {
     //todo implement this
     let signature = vec![1, 2, 3];
-    //println!("signature: {:x?}", signature);
     Ok(signature)
+}
+
+/// Verifies an ecdsa+sha256 signature
+pub fn ecdsa_sha256_verify(
+    _signed_data: &[u8],
+    _signature: &[u8],
+    _pk: &[u8],
+) -> Result<(), CborCertError> {
+    //todo implement this
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn new_alg_ed25519_test() {
+        let alg = Algorithm {
+            name_pk: Some(String::from("id-Ed25519")),
+            iana_pk: Some(PkIanaVal::IdEd25519),
+            name_sgn: Some(String::from("id-Ed25519")),
+            iana_sgn: Some(SgnIanaVal::IdEd25519),
+        };
+
+        let _alg1: Algorithm = Algorithm::new("id-Ed25519").unwrap();
+        let _alg2: Algorithm = Algorithm::new_sgn_alg_from_pk_num(6).unwrap();
+        let _alg3: Algorithm = Algorithm::new_sgn_alg_from_sgn_num(11).unwrap();
+        assert_eq!(&alg, &_alg1);
+        assert_eq!(&alg, &_alg2);
+        assert_eq!(&alg, &_alg3);
+    }
+
+    #[test]
+    fn new_alg_ecdsa_test() {
+        let alg = Algorithm {
+            name_pk: Some(String::from("id-ecPublicKey + secp256r1")),
+            iana_pk: Some(PkIanaVal::IdecPublicKeySecp256r1),
+            name_sgn: Some(String::from("ecdsa-with-SHA256")),
+            iana_sgn: Some(SgnIanaVal::EcdsaWithSHA256),
+        };
+
+        let _alg1: Algorithm = Algorithm::new("id-ecPublicKey + secp256r1").unwrap();
+        let _alg2: Algorithm = Algorithm::new("ecdsa-with-SHA256").unwrap();
+        let _alg3: Algorithm = Algorithm::new_sgn_alg_from_pk_num(1).unwrap();
+        let _alg4: Algorithm = Algorithm::new_sgn_alg_from_sgn_num(6).unwrap();
+        assert_eq!(&alg, &_alg1);
+        assert_eq!(&alg, &_alg2);
+        assert_eq!(&alg, &_alg3);
+        assert_eq!(&alg, &_alg4);
+    }
+
+    #[test]
+    fn ed25519_keygen_sgn_ver() {
+        let alg: Algorithm = Algorithm::new("id-Ed25519").unwrap();
+        let keypair = alg.key_gen().unwrap();
+        let message = "bla-bla";
+        let signature = alg
+            .sign(&keypair.pk, &keypair.sk, &message.as_bytes())
+            .unwrap();
+        alg.verify(&message.as_bytes(), &signature, &keypair.pk)
+            .unwrap();
+    }
 }
