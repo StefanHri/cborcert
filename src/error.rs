@@ -65,7 +65,6 @@ impl fmt::Display for CborCertError {
     }
 }
 
-//conversion from io:Error to CborCertError
 impl From<io::Error> for CborCertError {
     fn from(err: io::Error) -> CborCertError {
         CborCertError::Io(err)

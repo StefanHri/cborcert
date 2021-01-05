@@ -16,6 +16,7 @@ pub enum Command {
 }
 
 impl Config {
+    ///Puts the input parameters in a data structure
     pub fn new(c: Command, args: Vec<&str>) -> Result<Config, CborCertError> {
         match c {
             Command::KeyGen => {
@@ -29,7 +30,7 @@ impl Config {
             Command::CSRGen => {
                 Config::num_arguments_check(&args, 5, 4)?;
                 Ok(Config::CSRGen(CSRGenConf {
-                    csr_meta_data: Config::conf_from_toml(&args[0])?,
+                    data: Config::conf_from_toml(&args[0])?,
                     pk: Config::get_der_file_content(&args[1])?,
                     sk: Config::get_der_file_content(&args[2])?,
                     out_files: Config::get_out_files(&args[3..])?,

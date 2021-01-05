@@ -6,7 +6,6 @@ use std::process;
 mod config;
 mod keygen;
 mod saving;
-//mod cert;
 mod execution;
 mod algorithm;
 mod csr;

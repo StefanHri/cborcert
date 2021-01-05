@@ -28,6 +28,9 @@ cd tests
     ```toml
     certificate_serial_number = [1, 245, 13]
     issuer = "RFC test CA"
+    # The validity time is given in Unix time
+    # Use some tool such as https://www.gaijin.at/de/tools/time-converter to 
+    # convert to human readable format
     validity_not_before = 1577836800
     validity_not_after = 1612224000 
     extensions = 1

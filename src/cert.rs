@@ -14,7 +14,7 @@ pub struct CAconf {
     pub issuer: String,
     pub validity_not_before: i64,
     pub validity_not_after: i64,
-    pub extensions: i8, //to do check if this needs to be provided differently in the toml file
+    pub extensions: i8,
     pub issuer_signature_algorithm: String,
 }
 
@@ -69,6 +69,7 @@ pub struct OutVer<'a> {
 }
 
 impl CertVerConf {
+    ///Verifies a certificate
     pub fn cert_ver(&self) -> Result<Out, CborCertError> {
         let d = decode_native(&self.cert)?;
         let alg = Algorithm::new_sgn_alg_from_sgn_num(d.decoded_data.issuer_sgn_alg)?;
@@ -82,51 +83,46 @@ impl CertVerConf {
 }
 
 impl CertGenConf {
-    //to do check the cbor_cer_type 0 or 1 with the test vector
+    //Generates a certificate
     pub fn cert_gen(&self) -> Result<Out, CborCertError> {
         //verify the the csr
         let csr = csr_verify(&self.csr)?;
         //start the CBOR encoding
         //1) cborCertificateType
-        let mut encoded_signed_data = to_vec(&csr.scr_meta_data.cbor_cert_type)?;
+        let mut data = to_vec(&csr.data.cbor_cert_type)?;
         //2) certificateSerialNumber
-        encoded_signed_data.extend(
+        data.extend(
             to_vec(&Bytes::new(&self.ca_conf.certificate_serial_number))?
                 .iter()
                 .cloned(),
         );
         //3) issuer
-        encoded_signed_data.extend(to_vec(&self.ca_conf.issuer)?.iter().cloned());
+        data.extend(to_vec(&self.ca_conf.issuer)?.iter().cloned());
         //4) validityNotBefore
-        encoded_signed_data.extend(to_vec(&self.ca_conf.validity_not_before)?.iter().cloned());
+        data.extend(to_vec(&self.ca_conf.validity_not_before)?.iter().cloned());
         //5) validityNotAfter
-        encoded_signed_data.extend(to_vec(&self.ca_conf.validity_not_after)?.iter().cloned());
+        data.extend(to_vec(&self.ca_conf.validity_not_after)?.iter().cloned());
         //6) subject
-        encoded_signed_data.extend(
-            to_vec(&Bytes::new(&csr.scr_meta_data.subject_common_name))?
+        data.extend(
+            to_vec(&Bytes::new(&csr.data.subject_common_name))?
                 .iter()
                 .cloned(),
         );
         //7) subjectPublicKeyAlgorithm
-        println!(
-            "scr_meta_data.subject_pk_alg {}",
-            &csr.scr_meta_data.subject_pk_alg
-        );
-        let subject_alg = Algorithm::new(&csr.scr_meta_data.subject_pk_alg)?;
-        encoded_signed_data.extend(to_vec(&subject_alg.iana_pk_as_u8()?)?.iter().cloned());
-
+        let subject_alg = Algorithm::new(&csr.data.subject_pk_alg)?;
+        data.extend(to_vec(&subject_alg.iana_pk_as_u8()?)?.iter().cloned());
         //8) subjectPublicKey
-        encoded_signed_data.extend(to_vec(&Bytes::new(&csr.pk))?.iter().cloned());
+        data.extend(to_vec(&Bytes::new(&csr.pk))?.iter().cloned());
         //9) extensions
-        encoded_signed_data.extend(to_vec(&self.ca_conf.extensions)?.iter().cloned());
+        data.extend(to_vec(&self.ca_conf.extensions)?.iter().cloned());
         //10) issuerSignatureAlgorithm
         let issuer_alg = Algorithm::new(&self.ca_conf.issuer_signature_algorithm)?;
-        encoded_signed_data.extend(to_vec(&issuer_alg.iana_sgn_as_u8()?)?.iter().cloned());
+        data.extend(to_vec(&issuer_alg.iana_sgn_as_u8()?)?.iter().cloned());
 
         //calculate signature
-        let signature = issuer_alg.sign(&self.ca_pk, &self.ca_sk, &encoded_signed_data)?;
+        let signature = issuer_alg.sign(&self.ca_pk, &self.ca_sk, &data)?;
         println!("signature: {:?}", signature);
-        let mut cert = encoded_signed_data;
+        let mut cert = data;
         cert.extend(to_vec(&Bytes::new(&signature))?.iter().cloned());
 
         Ok(Out::OutCert(OutCert {
@@ -136,6 +132,7 @@ impl CertGenConf {
     }
 }
 
+///Gets a single field out of a CBOR encoded data
 fn get_field<'a, T>(cert: &'a [u8], offset: usize) -> Result<Field<T>, CborCertError>
 where
     T: serde::de::Deserialize<'a>,
@@ -151,29 +148,25 @@ where
     Ok(field)
 }
 
+///Verifies a CSR
 fn csr_verify(csr: &[u8]) -> Result<CSRSignedData, CborCertError> {
     let cbor_cert_type: Field<u8> = get_field(&csr, 0)?;
     let subject_cn: Field<&[u8]> = get_field(&csr, cbor_cert_type.offset)?;
     let subject_pk_alg: Field<u8> = get_field(&csr, subject_cn.offset)?;
     let pk: Field<&[u8]> = get_field(&csr, subject_pk_alg.offset)?;
     let signature: Field<&[u8]> = get_field(&csr, pk.offset)?;
-
     let signed_data = csr[..pk.offset].to_vec();
-
-    println!("subject_pk_alg: {}", subject_pk_alg.field);
-
     let alg = Algorithm::new_sgn_alg_from_pk_num(subject_pk_alg.field)?;
-    println!("alg {:?}", alg);
     alg.verify(&signed_data, signature.field, pk.field)?;
 
-    let scr_meta_data = CSRMetaData {
+    let data = CSRMetaData {
         cbor_cert_type: cbor_cert_type.field,
         subject_common_name: subject_cn.field.to_vec(),
         subject_pk_alg: alg.name_pk_as_string()?,
     };
 
     Ok(CSRSignedData {
-        scr_meta_data: scr_meta_data,
+        data: data,
         pk: pk.field.to_vec(),
     })
 }
@@ -193,21 +186,6 @@ fn decode_native(cert: &[u8]) -> Result<CBORCertificate, CborCertError> {
 
     //here we get the signed data
     let signed_data = cert[..issuer_sgn_alg.offset].to_vec();
-
-    println!("-----------------------------------------------------");
-    println!("cbor_cert_type is: {:?}", cbor_cert_type.field);
-    println!("cert_serial_number is: {:02x?}", cert_serial_number.field);
-    println!("issuer is: {:?}", issuer.field);
-    println!("validity_not_before is: {:?}", validity_not_before.field);
-    println!("validity_not_after is: {:?}", validity_not_after.field);
-    println!("subject is: {:02x?}", subject.field);
-    println!("subject_pk_alg is: {:}", subject_pk_alg.field);
-    println!("subject_pk is: {:02x?}", subject_pk.field);
-    println!("extensions is: {:}", extensions.field);
-    println!("issuer_sgn_alg is: {:}", issuer_sgn_alg.field);
-    println!("signed_data is: {:02x?}", signed_data);
-    println!("signature is: {:02x?}", signature.field);
-    println!("-----------------------------------------------------");
 
     let decoded_data = TBSCertificate {
         cbor_cert_type: cbor_cert_type.field,
@@ -232,6 +210,7 @@ fn decode_native(cert: &[u8]) -> Result<CBORCertificate, CborCertError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::saving::FileFormat;
 
     #[test]
     fn decode_native_test() {
@@ -294,5 +273,36 @@ mod tests {
         assert_eq!(d.decoded_data.issuer_sgn_alg, e.issuer_sgn_alg);
         assert_eq!(d.signature, expected_sgn);
         assert_eq!(d.signed_data, expected_signed_data);
+    }
+
+    #[test]
+    fn cert_ver() {
+        let f = File {
+            full_name: String::from("bla"),
+            name: String::from("bla"),
+            format: FileFormat::C,
+        };
+        let c = CertVerConf {
+            ca_pk: vec![
+                0x01, 0xe8, 0x97, 0xe2, 0x41, 0x55, 0x3b, 0x54, 0x29, 0x36, 0xab, 0xd4, 0xa3, 0x74,
+                0xd8, 0x9b, 0xab, 0x35, 0xe7, 0xea, 0x0b, 0xf0, 0x9f, 0x4e, 0x97, 0x3e, 0x18, 0x0e,
+                0xa7, 0xa3, 0x11, 0xb0,
+            ],
+            cert: vec![
+                0x00, 0x43, 0x01, 0xf5, 0x0d, 0x6b, 0x52, 0x46, 0x43, 0x20, 0x74, 0x65, 0x73, 0x74,
+                0x20, 0x43, 0x41, 0x1a, 0x5e, 0x0b, 0xe1, 0x00, 0x1a, 0x60, 0x18, 0x96, 0x00, 0x46,
+                0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0x06, 0x58, 0x20, 0x84, 0x5c, 0x93, 0xe1, 0x1b,
+                0x64, 0x18, 0x2b, 0x7c, 0x7f, 0x84, 0x23, 0x0b, 0x3e, 0xae, 0xa7, 0x19, 0x50, 0x81,
+                0x98, 0xb3, 0x4e, 0x26, 0x00, 0x59, 0xf0, 0x75, 0xe9, 0x30, 0x68, 0xa7, 0x99, 0x01,
+                0x0b, 0x58, 0x40, 0x6d, 0x7f, 0x80, 0x52, 0xb3, 0xe8, 0x7f, 0x0a, 0x4b, 0xe7, 0x35,
+                0xa1, 0xcf, 0xfa, 0xa7, 0xc3, 0x75, 0xfc, 0x07, 0xdf, 0xba, 0xbe, 0xa8, 0xb3, 0x68,
+                0xe5, 0xeb, 0xc6, 0x50, 0x82, 0x60, 0xf4, 0x94, 0x8b, 0x4e, 0x44, 0x04, 0x87, 0x79,
+                0xff, 0xac, 0xb0, 0x28, 0xd1, 0x07, 0x28, 0xd4, 0x93, 0xfa, 0x09, 0x2e, 0xe2, 0x74,
+                0x65, 0xd4, 0xdd, 0x46, 0x6e, 0xae, 0xd8, 0xfa, 0xa3, 0xe3, 0x0d,
+            ],
+            out_files: vec![f],
+        };
+
+        c.cert_ver().unwrap();
     }
 }

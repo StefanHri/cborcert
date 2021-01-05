@@ -14,12 +14,12 @@ pub struct CSRMetaData {
 }
 
 pub struct CSRSignedData {
-    pub scr_meta_data: CSRMetaData,
+    pub data: CSRMetaData,
     pub pk: Vec<u8>,
 }
 
 pub struct CSRGenConf {
-    pub csr_meta_data: CSRMetaData,
+    pub data: CSRMetaData,
     pub pk: Vec<u8>,
     pub sk: Vec<u8>,
     pub out_files: Vec<File>,
@@ -30,30 +30,32 @@ pub struct OutCSR<'a> {
     pub out_files: &'a [File],
 }
 
+  
 impl CSRGenConf {
     /// Generates a CSR
     /// The CSR contains:
-    /// * cbor_cert_type
-    /// * subject_common_name
-    /// * iana public key value indicating the public key algorithm
-    /// * public key
-    /// * signature over the above fields
+    /// 1) cbor_cert_type
+    /// 2) subject_common_name
+    /// 3) iana public key value indicating the public key algorithm
+    /// 4) public key
+    /// 5) signature over the above fields
     pub fn csr_gen(&self) -> Result<Out, CborCertError> {
-        let mut encoded_signed_data = to_vec(&self.csr_meta_data.cbor_cert_type)?;
-        encoded_signed_data.extend(
-            to_vec(&Bytes::new(&self.csr_meta_data.subject_common_name))?
+        //1) cbor_cert_type
+        let mut data = to_vec(&self.data.cbor_cert_type)?;
+        //2) subject_common_name
+        data.extend(
+            to_vec(&Bytes::new(&self.data.subject_common_name))?
                 .iter()
                 .cloned(),
         );
-        let alg = Algorithm::new(&self.csr_meta_data.subject_pk_alg)?;
-
-        encoded_signed_data.extend(to_vec(&alg.iana_pk_as_u8()?)?.iter().cloned());
-        encoded_signed_data.extend(to_vec(&Bytes::new(&self.pk))?.iter().cloned());
-
-        //println!("encoded_signed_data: {:x?}", encoded_signed_data);
-
-        let signature = alg.sign(&self.pk, &self.sk, &encoded_signed_data)?;
-        let mut csr = encoded_signed_data;
+        //3) iana public key value indicating the public key algorithm
+        let alg = Algorithm::new(&self.data.subject_pk_alg)?;
+        data.extend(to_vec(&alg.iana_pk_as_u8()?)?.iter().cloned());
+        //4) public key
+        data.extend(to_vec(&Bytes::new(&self.pk))?.iter().cloned());
+        //5) signature over the above fields
+        let signature = alg.sign(&self.pk, &self.sk, &data)?;
+        let mut csr = data;
         csr.extend(to_vec(&Bytes::new(&signature))?.iter().cloned());
 
         Ok(Out::OutCSR(OutCSR {
