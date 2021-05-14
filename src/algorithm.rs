@@ -102,7 +102,7 @@ impl Algorithm {
 
     /// Generates new algorithm from a string
     pub fn new(in_str: &str) -> Result<Algorithm, CborCertError> {
-        println!("in_str: {}", in_str);
+        //println!("in_str: {}", in_str);
         match in_str {
             "id-Ed25519" => Algorithm::alg_ed25519(),
             "id-ecPublicKey + secp256r1" | "ecdsa-with-SHA256" => Algorithm::alg_ecdsa_sha256(),

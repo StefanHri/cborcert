@@ -121,7 +121,7 @@ impl CertGenConf {
 
         //calculate signature
         let signature = issuer_alg.sign(&self.ca_pk, &self.ca_sk, &data)?;
-        println!("signature: {:?}", signature);
+        //println!("signature: {:?}", signature);
         let mut cert = data;
         cert.extend(to_vec(&Bytes::new(&signature))?.iter().cloned());
 

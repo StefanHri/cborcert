@@ -6,7 +6,7 @@ This tool is based on [CBOR Encoding of X.509 Certificates (CBOR Certificates)](
 
 * From: December 01, 2020
 
-The usage model follows [Guide for building an EDDSA pki](https://datatracker.ietf.org/doc/draft-moskowitz-eddsa-pki/)
+The usage model follows [Guide for building an EDDSA PKI](https://datatracker.ietf.org/doc/draft-moskowitz-eddsa-pki/)
 
 * Version: draft-moskowitz-eddsa-pki-04
 * From: draft-moskowitz-eddsa-pki-04
@@ -24,7 +24,7 @@ cd tests
 
 #### Root Level (CA0)
 
-* In the ca0 folder create .toml configuration file with the following content:
+* In the ca0 folder create `ca0.toml` configuration file with the following content:
     ```toml
     certificate_serial_number = [1, 245, 13]
     issuer = "RFC test CA"

@@ -1,6 +1,0 @@
-certificate_serial_number = [1, 245, 13]
-issuer = "RFC test CA"
-validity_not_before = 1577836800
-validity_not_after = 1612224000 
-extensions = 1
-issuer_signature_algorithm = "id-Ed25519"
