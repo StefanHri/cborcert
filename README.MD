@@ -1,4 +1,4 @@
-# CBORcert -- A Command Line Tool for Generation and Verification of natively encoded CBOR Certificates 
+# CBORcert -- A Command Line Tool for Generation and Verification of Natively Encoded CBOR Certificates 
 
 This tool is based on [CBOR Encoding of X.509 Certificates (CBOR Certificates)](https://datatracker.ietf.org/doc/draft-mattsson-cose-cbor-cert-compress/)
 
