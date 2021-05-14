@@ -13,6 +13,8 @@ The usage model follows [Guide for building an EDDSA PKI](https://datatracker.ie
 
 ## Usage Example: Building two stage PKI 
 
+(The following steps can be executed automatically by calling `sample_pki.sh` )
+
 #### Preparation
 
 create a folder structure with three folders one for each CA and one for the entity
